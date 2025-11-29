@@ -4,8 +4,7 @@ import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type ActivityLog, type EngineLog } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
-import { MoreHorizontal, Trash2, History, FileJson, Archive, Eye } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Trash2, History, FileJson, Archive, Eye } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -22,11 +21,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useState } from "react";
 
 function LogEntryCard({ log }: { log: EngineLog }) {
-    const getReading = (key: string) => {
-        const reading = log.readings.find(r => r.key.toLowerCase().includes(key.toLowerCase()));
-        return reading ? `${reading.value} ${reading.unit}` : '-';
-    }
-
     return (
         <DialogContent className="max-w-md">
             <DialogHeader>
@@ -38,7 +32,7 @@ function LogEntryCard({ log }: { log: EngineLog }) {
             <div className="space-y-4 text-sm py-4">
                 {log.readings.map(reading => (
                     <div key={reading.id} className="flex justify-between">
-                        <span className="text-muted-foreground">{reading.key.replace('M.E Port Side - ', '').replace('M.E Starboard - ', '').replace('Generator - ', '')}</span>
+                        <span className="text-muted-foreground">{reading.key.replace(/M\.E (Port Side|Starboard) - /g, '').replace('Generator - ', '')}</span>
                         <span className="font-medium">{reading.value} {reading.unit}</span>
                     </div>
                 ))}
@@ -60,7 +54,6 @@ export default function LogActivityPage() {
     const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
     const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
     const { toast } = useToast();
-    const [selectedLog, setSelectedLog] = useState<EngineLog | null>(null);
 
     const handleDeleteLog = (logId: string) => {
         setLogs(prev => prev.filter(log => log.id !== logId));
