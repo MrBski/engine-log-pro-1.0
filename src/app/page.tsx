@@ -8,7 +8,7 @@ import { AlertCircle, Ship, Warehouse } from "lucide-react";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type InventoryItem, type EngineLog } from "@/lib/data";
 import { Bar, BarChart as RechartsBarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
-import { ChartTooltipContent } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 
 export default function DashboardPage() {
   const [inventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const latestLog = logs.length > 0 ? logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0] : null;
 
   useEffect(() => {
+    // This effect should only run on the client to avoid hydration mismatch
     if (latestLog) {
       setFormattedTimestamp(new Date(latestLog.timestamp).toLocaleString());
     }
@@ -29,6 +30,13 @@ export default function DashboardPage() {
     stock: item.stock,
     threshold: item.lowStockThreshold,
   }));
+  
+  const chartConfig = {
+    stock: {
+      label: "Stock",
+      color: "hsl(var(--primary))",
+    },
+  };
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -100,14 +108,14 @@ export default function DashboardPage() {
           <CardDescription>A quick look at current stock levels.</CardDescription>
         </CardHeader>
         <CardContent className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <RechartsBarChart data={chartData}>
+          <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+            <RechartsBarChart data={chartData} accessibilityLayer>
               <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
               <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
               <Tooltip cursor={{fill: 'hsl(var(--muted))'}} content={<ChartTooltipContent />} />
-              <Bar dataKey="stock" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="stock" fill="var(--color-stock)" radius={[4, 4, 0, 0]} />
             </RechartsBarChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         </CardContent>
       </Card>
     </div>
