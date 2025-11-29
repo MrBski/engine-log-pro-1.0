@@ -106,9 +106,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 <h1 className="text-xl font-bold text-destructive">Firebase Configuration Error</h1>
                 <p className="mt-2 text-muted-foreground">The application could not connect to Firebase. This usually happens for one of two reasons:</p>
                 <ul className="mt-4 list-disc space-y-2 pl-5 text-left text-sm text-muted-foreground">
-                    <li>You haven't created the <strong>.env.local</strong> file for local development.</li>
-                    <li>You haven't added the Firebase credentials to the <strong>Environment Variables</strong> on your hosting platform (e.g., Vercel, Netlify).</li>
+                    <li>For local development, you need to create a <strong>.env.local</strong> file with the Firebase project credentials.</li>
+                    <li>For deployed sites (like Vercel), you must add the Firebase credentials to the <strong>Environment Variables</strong> in your project settings.</li>
                 </ul>
+                <p className="mt-4 text-xs text-muted-foreground">
+                    You can find your Firebase credentials in your Firebase Console under Project settings {'>'} General {'>'} Your apps {'>'} SDK setup and configuration {'>'} Config.
+                </p>
             </div>
         </div>
     )
