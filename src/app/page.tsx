@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -5,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertCircle, Clock, Fuel, Gauge } from "lucide-react";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
-import { getInitialData, type InventoryItem, type EngineLog } from "@/lib/data";
+import { getInitialData, type InventoryItem, type EngineLog, type AppSettings } from "@/lib/data";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
 import { AppHeader } from "@/components/app-header";
@@ -13,6 +14,7 @@ import { AppHeader } from "@/components/app-header";
 export default function DashboardPage() {
   const [inventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
   const [logs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
+  const [settings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function DashboardPage() {
           <Clock className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
             <p className="text-sm font-medium text-muted-foreground">Running Hours</p>
-            <p className="text-xl font-bold">1,204 hrs</p>
+            <p className="text-xl font-bold">{settings.runningHours.toLocaleString()} hrs</p>
           </div>
         </Card>
         <Card className="flex items-center p-4">

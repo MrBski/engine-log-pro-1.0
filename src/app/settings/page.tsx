@@ -17,6 +17,7 @@ import Link from 'next/link';
 
 const settingsSchema = z.object({
   shipName: z.string().min(1, 'Ship name is required.'),
+  runningHours: z.coerce.number().min(0, 'Running hours cannot be negative.'),
 });
 
 const newOfficerSchema = z.object({
@@ -29,7 +30,10 @@ export default function SettingsPage() {
 
   const settingsForm = useForm<z.infer<typeof settingsSchema>>({
     resolver: zodResolver(settingsSchema),
-    values: { shipName: settings.shipName },
+    values: { 
+      shipName: settings.shipName,
+      runningHours: settings.runningHours 
+    },
   });
 
   const newOfficerForm = useForm<z.infer<typeof newOfficerSchema>>({
@@ -38,8 +42,12 @@ export default function SettingsPage() {
   });
 
   const handleUpdateSettings = (values: z.infer<typeof settingsSchema>) => {
-    setSettings(prev => ({ ...prev, shipName: values.shipName }));
-    toast({ title: 'Success', description: 'Ship name updated.' });
+    setSettings(prev => ({ 
+      ...prev, 
+      shipName: values.shipName,
+      runningHours: values.runningHours
+    }));
+    toast({ title: 'Success', description: 'Settings updated.' });
   };
 
   const handleAddOfficer = (values: z.infer<typeof newOfficerSchema>) => {
@@ -74,6 +82,17 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>Ship Name</FormLabel>
                       <FormControl><Input {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={settingsForm.control}
+                  name="runningHours"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Total Running Hours</FormLabel>
+                      <FormControl><Input type="number" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
