@@ -42,67 +42,67 @@ export const initialSections: LogFormData['sections'] = [
     {
       title: 'M.E Port Side',
       readings: [
-        { key: 'RPM', value: '', unit: 'rpm' },
-        { key: 'L.O. PRESS', value: '', unit: 'bar' },
-        { key: 'Exhaust 1', value: '', unit: '°C' },
-        { key: 'Exhaust 2', value: '', unit: '°C' },
-        { key: 'Radiator', value: '', unit: '°C' },
-        { key: 'SW Temp', value: '', unit: '°C' },
-        { key: 'F.W. COOLERS In', value: '', unit: '°C' },
-        { key: 'F.W. COOLERS Out', value: '', unit: '°C' },
-        { key: 'L.O. COOLERS In', value: '', unit: '°C' },
-        { key: 'L.O. COOLERS Out', value: '', unit: '°C' },
+        { id: 'me_port_rpm', key: 'RPM', value: '', unit: 'rpm' },
+        { id: 'me_port_lo_press', key: 'L.O. PRESS', value: '', unit: 'bar' },
+        { id: 'me_port_exhaust1', key: 'Exhaust 1', value: '', unit: '°C' },
+        { id: 'me_port_exhaust2', key: 'Exhaust 2', value: '', unit: '°C' },
+        { id: 'me_port_radiator', key: 'Radiator', value: '', unit: '°C' },
+        { id: 'me_port_sw_temp', key: 'SW Temp', value: '', unit: '°C' },
+        { id: 'me_port_fw_in', key: 'F.W. COOLERS In', value: '', unit: '°C' },
+        { id: 'me_port_fw_out', key: 'F.W. COOLERS Out', value: '', unit: '°C' },
+        { id: 'me_port_lo_in', key: 'L.O. COOLERS In', value: '', unit: '°C' },
+        { id: 'me_port_lo_out', key: 'L.O. COOLERS Out', value: '', unit: '°C' },
       ],
     },
     {
       title: 'M.E Starboard',
       readings: [
-        { key: 'RPM', value: '', unit: 'rpm' },
-        { key: 'L.O. PRESS', value: '', unit: 'bar' },
-        { key: 'Exhaust 1', value: '', unit: '°C' },
-        { key: 'Exhaust 2', value: '', unit: '°C' },
-        { key: 'Radiator', value: '', unit: '°C' },
-        { key: 'SW Temp', value: '', unit: '°C' },
-        { key: 'F.W. COOLERS In', value: '', unit: '°C' },
-        { key: 'F.W. COOLERS Out', value: '', unit: '°C' },
-        { key: 'L.O. COOLERS In', value: '', unit: '°C' },
-        { key: 'L.O. COOLERS Out', value: '', unit: '°C' },
+        { id: 'me_sb_rpm', key: 'RPM', value: '', unit: 'rpm' },
+        { id: 'me_sb_lo_press', key: 'L.O. PRESS', value: '', unit: 'bar' },
+        { id: 'me_sb_exhaust1', key: 'Exhaust 1', value: '', unit: '°C' },
+        { id: 'me_sb_exhaust2', key: 'Exhaust 2', value: '', unit: '°C' },
+        { id: 'me_sb_radiator', key: 'Radiator', value: '', unit: '°C' },
+        { id: 'me_sb_sw_temp', key: 'SW Temp', value: '', unit: '°C' },
+        { id: 'me_sb_fw_in', key: 'F.W. COOLERS In', value: '', unit: '°C' },
+        { id: 'me_sb_fw_out', key: 'F.W. COOLERS Out', value: '', unit: '°C' },
+        { id: 'me_sb_lo_in', key: 'L.O. COOLERS In', value: '', unit: '°C' },
+        { id: 'me_sb_lo_out', key: 'L.O. COOLERS Out', value: '', unit: '°C' },
       ],
     },
     {
       title: 'Generator',
       readings: [
-        { key: 'L.O. PRESS', value: '', unit: 'bar' },
-        { key: 'F.W. TEMP', value: '', unit: '°C' },
-        { key: 'VOLTS', value: '', unit: 'V' },
-        { key: 'AMPERE', value: '', unit: 'A' },
+        { id: 'gen_lo_press', key: 'L.O. PRESS', value: '', unit: 'bar' },
+        { id: 'gen_fw_temp', key: 'F.W. TEMP', value: '', unit: '°C' },
+        { id: 'gen_volts', key: 'VOLTS', value: '', unit: 'V' },
+        { id: 'gen_ampere', key: 'AMPERE', value: '', unit: 'A' },
       ],
     },
     {
-        title: 'Daily Tank',
+        title: 'Flowmeter',
         readings: [
-            { key: 'Before', value: '', unit: 'cm' },
-            { key: 'After', value: '', unit: 'L' },
+            { id: 'flow_before', key: 'Before', value: '', unit: 'L' },
+            { id: 'flow_after', key: 'After', value: '', unit: 'L' },
         ],
     },
     {
-      title: 'Flowmeter',
+      title: 'Daily Tank',
       readings: [
-        { key: 'Before', value: '', unit: 'L' },
-        { key: 'After', value: '', unit: 'L' },
+          { id: 'daily_before', key: 'Before', value: '', unit: 'cm' },
+          { id: 'daily_after', key: 'After', value: '', unit: 'L' },
       ],
     },
     {
       title: 'Daily Tank Before On Duty',
       readings: [
-        { key: 'Before', value: '', unit: 'cm' },
+        { id: 'onduty_before', key: 'Before', value: '', unit: 'cm' },
       ],
     },
     {
         title: 'Others',
         readings: [
-            { key: 'RoB', value: '', unit: 'L' },
-            { key: 'USED 4 Hours', value: '', unit: 'L' },
+            { id: 'other_rob', key: 'RoB', value: '', unit: 'L' },
+            { id: 'other_used', key: 'USED 4 Hours', value: '', unit: 'L' },
         ]
     }
 ];
@@ -144,24 +144,29 @@ export default function LogbookPage() {
   useEffect(() => {
     const onDutySection = watchedSections.find(s => s.title === 'Daily Tank Before On Duty');
     const dailyTankSection = watchedSections.find(s => s.title === 'Daily Tank');
-
+  
     const onDutyBeforeValue = onDutySection?.readings.find(r => r.key === 'Before')?.value;
     const dailyTankBeforeValue = dailyTankSection?.readings.find(r => r.key === 'Before')?.value;
-
-    const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
-    const dailyTankBefore = parseFloat(dailyTankBeforeValue || '0');
-
+  
     const othersSectionIndex = watchedSections.findIndex(s => s.title === 'Others');
     const used4HoursReadingIndex = watchedSections[othersSectionIndex]?.readings.findIndex(r => r.key === 'USED 4 Hours');
-
+  
     if (othersSectionIndex !== -1 && used4HoursReadingIndex !== -1) {
-      if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore) && onDutyBefore > 0 && dailyTankBefore > 0) {
-        const used4Hours = ((onDutyBefore - dailyTankBefore) * 21) / 4;
-        form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toFixed(2), { shouldValidate: false });
+      // Check if both values are non-empty strings before parsing
+      if (onDutyBeforeValue && dailyTankBeforeValue) {
+        const onDutyBefore = parseFloat(onDutyBeforeValue);
+        const dailyTankBefore = parseFloat(dailyTankBeforeValue);
+  
+        // Check if both parsed values are valid numbers
+        if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
+          const used4Hours = ((onDutyBefore - dailyTankBefore) * 21) / 4;
+          form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toFixed(2), { shouldValidate: false });
+        }
       } else {
+        // If one or both inputs are empty, set the value to an empty string or 0.00
         const currentValue = form.getValues(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`);
-        if (currentValue !== "0.00" && currentValue !== "") {
-             form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, "0.00", { shouldValidate: false });
+        if (currentValue !== "") {
+          form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
         }
       }
     }
@@ -255,7 +260,7 @@ export default function LogbookPage() {
                   </h3>
                   {section.readings.map((reading, readingIndex) => (
                     <FormField
-                      key={`${section.id}-${readingIndex}`}
+                      key={`${section.id}-${reading.id || readingIndex}`}
                       control={form.control}
                       name={`sections.${sectionIndex}.readings.${readingIndex}.value`}
                       render={({ field }) => (
@@ -329,5 +334,3 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
