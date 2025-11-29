@@ -65,14 +65,14 @@ export default function DashboardPage() {
           <Clock className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
             <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
-            <p className="text-xl font-bold">{settings.runningHours.toLocaleString()} hrs</p>
+            <p className="text-xl font-bold">{(settings.runningHours || 0).toLocaleString()} hrs</p>
           </div>
         </Card>
         <Card className="flex items-center p-4">
           <Clock className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
             <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
-            <p className="text-xl font-bold">{settings.generatorRunningHours.toLocaleString()} hrs</p>
+            <p className="text-xl font-bold">{(settings.generatorRunningHours || 0).toLocaleString()} hrs</p>
           </div>
         </Card>
         <Card className="flex items-center p-4">

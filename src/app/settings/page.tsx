@@ -33,8 +33,8 @@ export default function SettingsPage() {
     resolver: zodResolver(settingsSchema),
     values: { 
       shipName: settings.shipName,
-      runningHours: settings.runningHours,
-      generatorRunningHours: settings.generatorRunningHours,
+      runningHours: settings.runningHours || 0,
+      generatorRunningHours: settings.generatorRunningHours || 0,
     },
   });
 
