@@ -5,7 +5,7 @@ import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
-import { Trash2, History, FileJson, Archive, Eye, Share2 } from "lucide-react";
+import { Trash2, History, FileJson, Archive, Eye, Share2, Zap } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -214,6 +214,42 @@ export default function LogActivityPage() {
         'generator': 'Inventory (AE)',
         'other': 'Inventory (Others)',
     };
+    
+    const getIcon = (type: ActivityLog['type']) => {
+        switch (type) {
+            case 'engine': return <FileJson className="h-4 w-4 text-muted-foreground" />;
+            case 'inventory': return <Archive className="h-4 w-4 text-muted-foreground" />;
+            case 'generator': return <Zap className="h-4 w-4 text-muted-foreground" />;
+            default: return <History className="h-4 w-4 text-muted-foreground" />;
+        }
+    }
+
+    const getActivityTitle = (activity: ActivityLog) => {
+        switch (activity.type) {
+            case 'engine': return 'Engine Log Entry';
+            case 'inventory': return `"${activity.name}" updated`;
+            case 'generator': return 'Generator Action';
+            default: return 'Activity';
+        }
+    }
+
+    const getOfficerText = (activity: ActivityLog) => {
+        switch (activity.type) {
+            case 'engine': return `by ${activity.officer}`;
+            case 'inventory': return categoryMapping[activity.category || 'other'];
+            case 'generator': return `by ${activity.officer}`;
+            default: return '';
+        }
+    }
+
+    const getNotes = (activity: ActivityLog) => {
+         switch (activity.type) {
+            case 'engine': return null;
+            case 'inventory': return activity.notes;
+            case 'generator': return activity.notes;
+            default: return null;
+        }
+    }
 
     return (
         <>
@@ -225,65 +261,64 @@ export default function LogActivityPage() {
             </div>
 
             <div className="space-y-2">
-                {sortedActivities.map(activity => (
-                    <Card key={activity.id} className="flex items-center justify-between p-3">
-                        <div className="flex items-center gap-3">
-                            {activity.type === 'engine' ? (
-                                <FileJson className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                                <Archive className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            <div>
-                                <p className="font-semibold text-sm">
-                                    {activity.type === 'engine' ? 'Engine Log Entry' : `"${activity.name}" updated`}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    {isMounted ? new Date(activity.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'}) : '...'} - {' '}
-                                    <span className="font-medium">
-                                        {activity.type === 'engine' ? `by ${activity.officer}` : categoryMapping[activity.category || 'other']}
-                                    </span>
-                                </p>
-                                {activity.type === 'inventory' && (
-                                     <p className="text-xs text-muted-foreground">{activity.notes}</p>
-                                )}
+                {sortedActivities.map(activity => {
+                    const notes = getNotes(activity);
+                    return (
+                        <Card key={activity.id} className="flex items-center justify-between p-3">
+                            <div className="flex items-center gap-3">
+                                {getIcon(activity.type)}
+                                <div>
+                                    <p className="font-semibold text-sm">
+                                        {getActivityTitle(activity)}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {isMounted ? new Date(activity.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'}) : '...'} - {' '}
+                                        <span className="font-medium">
+                                            {getOfficerText(activity)}
+                                        </span>
+                                    </p>
+                                    {notes && (
+                                         <p className="text-xs text-muted-foreground">{notes}</p>
+                                    )}
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="flex items-center gap-1">
-                           {activity.type === 'engine' && (
-                            <>
-                                <Dialog>
-                                    <DialogTrigger asChild>
-                                        <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
-                                    </DialogTrigger>
-                                    {/* Find the full log from the logs array to pass to the card */}
-                                    <LogEntryCard log={logs.find(l => l.id === activity.id) as EngineLog} logbookSections={logbookSections} />
-                                </Dialog>
+                            <div className="flex items-center gap-1">
+                               {activity.type === 'engine' && (
+                                <>
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
+                                        </DialogTrigger>
+                                        {/* Find the full log from the logs array to pass to the card */}
+                                        <LogEntryCard log={logs.find(l => l.id === activity.id) as EngineLog} logbookSections={logbookSections} />
+                                    </Dialog>
 
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action cannot be undone. This will permanently delete the log entry.
-                                        </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteLog(activity.id)}>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </>
-                           )}
-                        </div>
-                    </Card>
-                ))}
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This action cannot be undone. This will permanently delete the log entry.
+                                            </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteLog(activity.id)}>Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </>
+                               )}
+                            </div>
+                        </Card>
+                    )
+                })}
             </div>
         </div>
         </>

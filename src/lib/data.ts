@@ -40,7 +40,8 @@ export type InventoryItem = {
 
 export type ActivityLog = 
   | ({ type: 'engine' } & EngineLog)
-  | ({ type: 'inventory'; notes: string; name: string; category: InventoryCategory } & { id: string; timestamp: string });
+  | { type: 'inventory'; notes: string; name: string; category: InventoryCategory; id: string; timestamp: string }
+  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: string };
 
 export type AppSettings = {
   shipName: string;
@@ -175,3 +176,5 @@ export const getInitialData = () => ({
     }
   ] as LogSection[],
 });
+
+    

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertCircle, Clock, Fuel, Gauge, Power, PowerOff, RotateCcw } from "lucide-react";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
-import { getInitialData, type InventoryItem, type EngineLog, type AppSettings } from "@/lib/data";
+import { getInitialData, type InventoryItem, type EngineLog, type AppSettings, type ActivityLog } from "@/lib/data";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
 import { AppHeader } from "@/components/app-header";
@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [inventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
   const [logs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
   const [settings, setSettings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
+  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
   const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
 
@@ -48,6 +49,17 @@ export default function DashboardPage() {
     setCurrentGeneratorRHS(settings.generatorRunningHours || 0);
   }, [settings.generatorRunningHours]);
 
+  const addGeneratorActivity = (notes: string) => {
+    const newActivity: ActivityLog = {
+      id: `activity-${Date.now()}`,
+      type: 'generator',
+      timestamp: new Date().toISOString(),
+      notes,
+      officer: settings.officers[0] || 'Chief Engineer',
+    };
+    setActivityLog(prev => [newActivity, ...prev]);
+  };
+
 
   const handleGeneratorToggle = () => {
     if (settings.generatorStatus === 'on') {
@@ -64,6 +76,7 @@ export default function DashboardPage() {
               generatorRunningHours: newTotal,
           }
       });
+      addGeneratorActivity('Generator turned OFF');
       toast({ title: "Generator Off", description: "Running hours have been updated." });
     } else {
       // Turning ON
@@ -72,6 +85,7 @@ export default function DashboardPage() {
         generatorStatus: 'on',
         generatorStartTime: Date.now(),
       }));
+      addGeneratorActivity('Generator turned ON');
       toast({ title: "Generator On", description: "Running hours tracking started." });
     }
   };
@@ -83,6 +97,7 @@ export default function DashboardPage() {
         generatorStartTime: prev.generatorStatus === 'on' ? Date.now() : null,
       }));
       setCurrentGeneratorRHS(0);
+      addGeneratorActivity('Generator RHS Reset');
       toast({ title: "Generator RHS Reset", description: "Running hours have been reset to 0." });
   };
 
@@ -255,3 +270,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
