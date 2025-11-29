@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from 'react';
-import { PlusCircle, MinusCircle } from 'lucide-react';
+import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -148,7 +148,7 @@ export default function InventoryPage() {
           </div>
           <div className="flex gap-2">
             <Dialog open={isUseDialogOpen} onOpenChange={setIsUseDialogOpen}>
-              <DialogTrigger asChild><Button variant="outline"><MinusCircle className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
+              <DialogTrigger asChild><Button variant="outline"><Icons.minus className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Use Inventory Item</DialogTitle>
@@ -181,7 +181,7 @@ export default function InventoryPage() {
               </DialogContent>
             </Dialog>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild><Button><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
+              <DialogTrigger asChild><Button><Icons.plus className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Add New Inventory Item</DialogTitle></DialogHeader>
                 <Form {...addForm}><form onSubmit={addForm.handleSubmit(handleAddItem)} className="space-y-4">
@@ -219,5 +219,3 @@ export default function InventoryPage() {
     </>
   );
 }
-
-    

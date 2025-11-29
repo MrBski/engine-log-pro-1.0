@@ -1,8 +1,9 @@
+
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Gauge, Anchor, Ship, Settings, Warehouse } from "lucide-react";
+import { Icons } from "./icons";
 import {
   Sidebar,
   SidebarHeader,
@@ -15,10 +16,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "./ui/separator";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: Gauge },
-  { href: "/logbook", label: "Logbook", icon: Ship },
-  { href: "/inventory", label: "Inventory", icon: Warehouse },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", label: "Dashboard", icon: Icons.gauge },
+  { href: "/logbook", label: "Logbook", icon: Icons.ship },
+  { href: "/inventory", label: "Inventory", icon: Icons.warehouse },
+  { href: "/settings", label: "Settings", icon: Icons.settings },
 ];
 
 export function AppSidebar() {
@@ -28,7 +29,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-3">
-          <Anchor className="size-8 text-sidebar-primary" />
+          <Icons.logo className="size-8 text-sidebar-primary" />
           <span className="text-xl font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
             Engine log pro
           </span>

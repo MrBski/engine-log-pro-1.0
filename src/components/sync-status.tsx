@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Wifi, WifiOff } from 'lucide-react';
+import { Icons } from './icons';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -55,12 +56,12 @@ export function SyncStatus() {
   }, [toast]);
 
   let statusText = "Offline";
-  let StatusIcon = WifiOff;
+  let StatusIcon = Icons.wifiOff;
   let badgeVariant: "destructive" | "default" | "secondary" | "outline" | null | undefined = "destructive";
 
   if (isOnline) {
     statusText = isSyncing ? "Syncing..." : "Online";
-    StatusIcon = Wifi;
+    StatusIcon = Icons.wifi;
     badgeVariant = isSyncing ? "secondary" : "default";
   }
 

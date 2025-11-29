@@ -5,7 +5,7 @@ import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
-import { Trash2, History, FileJson, Archive, Eye, Share2, Zap } from "lucide-react";
+import { Icons } from "@/components/icons";
 import {
   Dialog,
   DialogContent,
@@ -174,7 +174,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
             </div>
             <DialogFooter>
                 <Button variant="outline" onClick={handleShare}>
-                    <Share2 className="mr-2 h-4 w-4" />
+                    <Icons.share className="mr-2 h-4 w-4" />
                     Share
                 </Button>
                 <DialogClose asChild>
@@ -217,10 +217,10 @@ export default function LogActivityPage() {
     
     const getIcon = (type: ActivityLog['type']) => {
         switch (type) {
-            case 'engine': return <FileJson className="h-4 w-4 text-muted-foreground" />;
-            case 'inventory': return <Archive className="h-4 w-4 text-muted-foreground" />;
-            case 'generator': return <Zap className="h-4 w-4 text-muted-foreground" />;
-            default: return <History className="h-4 w-4 text-muted-foreground" />;
+            case 'engine': return <Icons.file className="h-4 w-4 text-muted-foreground" />;
+            case 'inventory': return <Icons.archive className="h-4 w-4 text-muted-foreground" />;
+            case 'generator': return <Icons.zap className="h-4 w-4 text-muted-foreground" />;
+            default: return <Icons.history className="h-4 w-4 text-muted-foreground" />;
         }
     }
 
@@ -256,7 +256,7 @@ export default function LogActivityPage() {
         <AppHeader />
         <div className="space-y-4">
             <div className="flex items-center gap-2">
-                <History className="h-6 w-6 text-primary" />
+                <Icons.history className="h-6 w-6 text-primary" />
                 <h2 className="text-2xl font-bold text-foreground">Log Activity</h2>
             </div>
 
@@ -288,7 +288,7 @@ export default function LogActivityPage() {
                                 <>
                                     <Dialog>
                                         <DialogTrigger asChild>
-                                            <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button>
                                         </DialogTrigger>
                                         {/* Find the full log from the logs array to pass to the card */}
                                         <LogEntryCard log={logs.find(l => l.id === activity.id) as EngineLog} logbookSections={logbookSections} />
@@ -297,7 +297,7 @@ export default function LogActivityPage() {
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                                <Trash2 className="h-4 w-4" />
+                                                <Icons.trash className="h-4 w-4" />
                                             </Button>
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
@@ -324,5 +324,3 @@ export default function LogActivityPage() {
         </>
     )
 }
-
-    

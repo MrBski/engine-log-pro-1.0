@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type AppSettings } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, UserPlus, BookCopy } from 'lucide-react';
+import { Icons } from '@/components/icons';
 import { AppHeader } from '@/components/app-header';
 import Link from 'next/link';
 import { useEffect } from 'react';
@@ -145,7 +145,7 @@ export default function SettingsPage() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" size="icon"><UserPlus className="h-4 w-4" /></Button>
+                <Button type="submit" size="icon"><Icons.userPlus className="h-4 w-4" /></Button>
               </form>
             </Form>
             <div className="space-y-2">
@@ -153,7 +153,7 @@ export default function SettingsPage() {
                 <div key={officer} className="flex items-center justify-between rounded-md border p-3">
                   <span className="text-sm font-medium">{officer}</span>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveOfficer(officer)}>
-                    <Trash2 className="h-4 w-4" />
+                    <Icons.trash className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
@@ -168,7 +168,7 @@ export default function SettingsPage() {
             <CardContent>
                 <Button asChild variant="outline">
                     <Link href="/settings/logbook">
-                        <BookCopy className="mr-2 h-4 w-4" />
+                        <Icons.book className="mr-2 h-4 w-4" />
                         Customize Logbook
                     </Link>
                 </Button>

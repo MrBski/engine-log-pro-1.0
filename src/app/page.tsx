@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertCircle, Clock, Fuel, Gauge, Power, PowerOff, RotateCcw } from "lucide-react";
+import { Icons } from "@/components/icons";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type InventoryItem, type EngineLog, type AppSettings, type ActivityLog } from "@/lib/data";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
@@ -152,7 +152,7 @@ export default function DashboardPage() {
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         <Card className="flex flex-col p-4 justify-between">
           <div className="flex items-center">
-            <Clock className="h-6 w-6 text-muted-foreground mr-4" />
+            <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
             <div className="flex-1">
               <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
               <p className="text-xl font-bold">{(settings.runningHours || 0).toLocaleString()} hrs</p>
@@ -162,7 +162,7 @@ export default function DashboardPage() {
         <Card className="flex flex-col p-4 justify-between">
             <div>
               <div className="flex items-center">
-                <Clock className="h-6 w-6 text-muted-foreground mr-4" />
+                <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
                    <p className="text-xl font-bold">{formatDuration(getTotalElapsedSeconds())}</p>
@@ -172,7 +172,7 @@ export default function DashboardPage() {
             <div className="flex justify-end gap-2 mt-2">
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="icon" className="h-8 w-8"><RotateCcw /></Button>
+                        <Button variant="destructive" size="icon" className="h-8 w-8"><Icons.reset /></Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader><AlertDialogTitle>Reset Generator RHS?</AlertDialogTitle><AlertDialogDescription>This will reset the running hours to 0. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
@@ -187,19 +187,19 @@ export default function DashboardPage() {
                     className={cn("h-8 w-8", settings.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
                     onClick={handleGeneratorToggle}
                 >
-                    {settings.generatorStatus === 'on' ? <PowerOff /> : <Power />}
+                    {settings.generatorStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
                 </Button>
             </div>
         </Card>
         <Card className="flex items-center p-4">
-          <Fuel className="h-6 w-6 text-muted-foreground mr-4" />
+          <Icons.fuel className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
             <p className="text-sm font-medium text-muted-foreground">Fuel Consumption</p>
             <p className="text-xl font-bold">{latestLog ? getReading(latestLog, 'USED 4 Hours') : 'N/A'}</p>
           </div>
         </Card>
         <Card className="flex items-center p-4">
-          <AlertCircle className="h-6 w-6 text-destructive mr-4" />
+          <Icons.alert className="h-6 w-6 text-destructive mr-4" />
           <div className="flex-1">
             <p className="text-sm font-medium text-muted-foreground">Low Stock Alerts</p>
             <p className="text-xl font-bold">{lowStockItems.length} items</p>
@@ -270,5 +270,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

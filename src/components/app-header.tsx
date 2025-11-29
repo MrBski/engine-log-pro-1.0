@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -5,7 +6,7 @@ import { SyncStatus } from "@/components/sync-status";
 import { usePathname } from "next/navigation";
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type AppSettings } from '@/lib/data';
-import { Anchor } from 'lucide-react';
+import { Icons } from './icons';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 
 
@@ -45,7 +46,7 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-10 flex h-20 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm lg:px-6">
       <div className="flex items-center gap-4">
-        <Anchor className="size-8 text-primary" />
+        <Icons.logo className="size-8 text-primary" />
         {getBreadcrumb()}
       </div>
       <div className="flex items-center gap-4">

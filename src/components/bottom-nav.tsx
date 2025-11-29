@@ -1,16 +1,17 @@
+
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Camera, History, House, Archive, Settings } from "lucide-react";
+import { Icons } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/logbook", label: "Input Data", icon: Camera },
-  { href: "/log-activity", label: "Log Activity", icon: History },
-  { href: "/", label: "Home", icon: House, isCentral: true },
-  { href: "/inventory", label: "Inventory", icon: Archive },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/logbook", label: "Input Data", icon: Icons.camera },
+  { href: "/log-activity", label: "Log Activity", icon: Icons.history },
+  { href: "/", label: "Home", icon: Icons.home, isCentral: true },
+  { href: "/inventory", label: "Inventory", icon: Icons.archive },
+  { href: "/settings", label: "Settings", icon: Icons.settings },
 ];
 
 export default function BottomNav() {

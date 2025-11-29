@@ -7,7 +7,7 @@ import { getInitialData, type LogSection, type Reading } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Trash2, PlusCircle, GripVertical, Edit, Save, X, ArrowLeft } from 'lucide-react';
+import { Icons } from '@/components/icons';
 import {
   Dialog,
   DialogContent,
@@ -92,7 +92,7 @@ export default function LogbookSettingsPage() {
     <div className="max-w-4xl mx-auto p-4 space-y-6">
       <header className="flex items-center gap-4">
         <Button variant="outline" size="icon" asChild>
-            <Link href="/settings"><ArrowLeft className="h-4 w-4" /></Link>
+            <Link href="/settings"><Icons.arrowLeft className="h-4 w-4" /></Link>
         </Button>
         <div>
             <h1 className="text-2xl font-bold">Customize Logbook</h1>
@@ -125,19 +125,19 @@ export default function LogbookSettingsPage() {
                            </FormItem>
                          )}
                        />
-                       <Button type="submit" size="icon"><Save className="h-4 w-4" /></Button>
-                       <Button type="button" variant="ghost" size="icon" onClick={() => setEditingSectionId(null)}><X className="h-4 w-4" /></Button>
+                       <Button type="submit" size="icon"><Icons.save className="h-4 w-4" /></Button>
+                       <Button type="button" variant="ghost" size="icon" onClick={() => setEditingSectionId(null)}><Icons.close className="h-4 w-4" /></Button>
                      </form>
                    </Form>
                 ) : (
                     <div className="flex items-center gap-2">
-                        <GripVertical className="h-5 w-5 text-muted-foreground" />
+                        <Icons.grip className="h-5 w-5 text-muted-foreground" />
                         <h3 className="font-semibold text-lg">{section.title}</h3>
-                        <Button variant="ghost" size="icon" onClick={() => setEditingSectionId(section.id)}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => setEditingSectionId(section.id)}><Icons.edit className="h-4 w-4" /></Button>
                     </div>
                 )}
                 <Button variant="destructive" size="sm" onClick={() => handleRemoveSection(section.id)}>
-                  <Trash2 className="mr-2 h-4 w-4" /> Remove Section
+                  <Icons.trash className="mr-2 h-4 w-4" /> Remove Section
                 </Button>
               </div>
 
@@ -146,7 +146,7 @@ export default function LogbookSettingsPage() {
                   <div key={reading.id} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
                     <p className="text-sm font-medium">{reading.key} <span className="text-muted-foreground">({reading.unit})</span></p>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleRemoveReading(section.id, reading.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                      <Icons.trash className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
                 ))}
@@ -154,7 +154,7 @@ export default function LogbookSettingsPage() {
                 <Dialog>
                   <DialogTrigger asChild>
                     <Button variant="outline" className="w-full">
-                      <PlusCircle className="mr-2 h-4 w-4" /> Add Reading
+                      <Icons.plus className="mr-2 h-4 w-4" /> Add Reading
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
@@ -200,7 +200,7 @@ export default function LogbookSettingsPage() {
           <Dialog>
             <DialogTrigger asChild>
               <Button className="w-full">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add New Section
+                <Icons.plus className="mr-2 h-4 w-4" /> Add New Section
               </Button>
             </DialogTrigger>
             <DialogContent>

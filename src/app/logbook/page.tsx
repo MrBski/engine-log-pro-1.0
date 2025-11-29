@@ -15,7 +15,7 @@ import { getInitialData, type EngineLog, type AppSettings, type ActivityLog, typ
 import { useToast } from '@/hooks/use-toast';
 import { AppHeader } from '@/components/app-header';
 import { format } from 'date-fns';
-import { AlertTriangle, Settings } from 'lucide-react';
+import { Icons } from '@/components/icons';
 import Link from 'next/link';
 
 const readingSchema = z.object({
@@ -238,13 +238,13 @@ export default function LogbookPage() {
                 <CardTitle className="text-center">Logbook Not Configured</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center text-center space-y-4">
-                <AlertTriangle className="h-12 w-12 text-destructive" />
+                <Icons.warning className="h-12 w-12 text-destructive" />
                 <p className="text-muted-foreground">
                     Your logbook sheet is empty. Please configure the sections and fields you want to track.
                 </p>
                 <Button asChild>
                     <Link href="/settings/logbook">
-                        <Settings className="mr-2 h-4 w-4" /> Configure Logbook
+                        <Icons.settings className="mr-2 h-4 w-4" /> Configure Logbook
                     </Link>
                 </Button>
             </CardContent>
@@ -272,7 +272,7 @@ export default function LogbookPage() {
           <CardTitle className="text-center">New Engine Log Sheet</CardTitle>
            <Button variant="ghost" size="icon" asChild>
                 <Link href="/settings/logbook">
-                    <Settings className="h-5 w-5" />
+                    <Icons.settings className="h-5 w-5" />
                 </Link>
             </Button>
         </CardHeader>
@@ -382,5 +382,3 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
