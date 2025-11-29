@@ -53,7 +53,7 @@ const sectionColors: { [key: string]: string } = {
 export default function LogbookPage() {
   const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
   const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
-  const [settings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
+  const [settings, setSettings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
   const [logbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
@@ -79,6 +79,38 @@ export default function LogbookPage() {
     setIsClient(true);
   }, []);
   
+  const onDutyBeforeValue = form.watch('sections.5.readings.0.value'); 
+  const dailyTankBeforeValue = form.watch('sections.4.readings.0.value'); 
+
+  // Effect for calculation and initialization
+  useEffect(() => {
+    if (isClient && !isLoading) { // Ensure this runs only after initial values are set
+        const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
+        const dailyTankBefore = parseFloat(dailyTankBeforeValue || '0');
+
+        let used4HoursSectionIndex: number | undefined;
+        let used4HoursReadingIndex: number | undefined;
+
+        form.getValues('sections').forEach((section, sIdx) => {
+            section.readings.forEach((reading, rIdx) => {
+                if (reading.id === 'other_used') {
+                    used4HoursSectionIndex = sIdx;
+                    used4HoursReadingIndex = rIdx;
+                }
+            });
+        });
+        
+        if (used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
+            if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore) && onDutyBefore > 0 && dailyTankBefore > 0) {
+                const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
+                form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: true, shouldDirty: true });
+            } else {
+                form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
+            }
+        }
+    }
+  }, [onDutyBeforeValue, dailyTankBeforeValue, isClient, isLoading, form]);
+
   // Effect for initialization
   useEffect(() => {
     if (isClient) {
@@ -97,63 +129,6 @@ export default function LogbookPage() {
     }
   }, [isClient, logbookSections, settings.officers, form]);
   
-  const onDutyBeforeValue = form.watch(
-      (() => {
-          let sIdx, rIdx;
-          form.getValues('sections').forEach((section, sectionIndex) => {
-              section.readings.forEach((reading, readingIndex) => {
-                  if (reading.id === 'onduty_before') {
-                      sIdx = sectionIndex;
-                      rIdx = readingIndex;
-                  }
-              });
-          });
-          return sIdx !== undefined && rIdx !== undefined ? `sections.${sIdx}.readings.${rIdx}.value` : 'sections.0.readings.0.value';
-      })() as any
-  );
-  
-  const dailyTankBeforeValue = form.watch(
-      (() => {
-          let sIdx, rIdx;
-          form.getValues('sections').forEach((section, sectionIndex) => {
-              section.readings.forEach((reading, readingIndex) => {
-                  if (reading.id === 'daily_before') {
-                      sIdx = sectionIndex;
-                      rIdx = readingIndex;
-                  }
-              });
-          });
-          return sIdx !== undefined && rIdx !== undefined ? `sections.${sIdx}.readings.${rIdx}.value` : 'sections.0.readings.0.value';
-      })() as any
-  );
-
-  // Effect for calculation, separated from initialization and other logic
-  useEffect(() => {
-      const onDutyBefore = parseFloat(onDutyBeforeValue || '');
-      const dailyTankBefore = parseFloat(dailyTankBeforeValue || '');
-
-      let used4HoursSectionIndex: number | undefined;
-      let used4HoursReadingIndex: number | undefined;
-
-      form.getValues('sections').forEach((section, sIdx) => {
-          section.readings.forEach((reading, rIdx) => {
-              if (reading.id === 'other_used') {
-                  used4HoursSectionIndex = sIdx;
-                  used4HoursReadingIndex = rIdx;
-              }
-          });
-      });
-      
-      if (used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
-          if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
-              const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
-              form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: false });
-          } else {
-              form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
-          }
-      }
-  }, [onDutyBeforeValue, dailyTankBeforeValue, form]);
-
 
   function onSubmit(values: LogFormData) {
     const newLog: EngineLog = {
@@ -171,6 +146,12 @@ export default function LogbookPage() {
       notes: values.condition || 'No conditions noted.',
     };
     setLogs(prevLogs => [newLog, ...prevLogs]);
+
+    // Update Running Hours
+    setSettings(prevSettings => ({
+      ...prevSettings,
+      runningHours: prevSettings.runningHours + 4
+    }));
 
     const newActivity: ActivityLog = {
         ...newLog,
@@ -382,3 +363,5 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
