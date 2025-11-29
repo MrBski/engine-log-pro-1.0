@@ -141,8 +141,11 @@ export default function LogbookPage() {
   const watchedSections = form.watch("sections");
 
   useEffect(() => {
-    const onDutyBeforeValue = watchedSections.find(s => s.title === 'Daily Tank Before On Duty')?.readings.find(r => r.key === 'Before')?.value;
-    const dailyTankBeforeValue = watchedSections.find(s => s.title === 'Daily Tank')?.readings.find(r => r.key === 'Before')?.value;
+    const onDutySection = watchedSections.find(s => s.title === 'Daily Tank Before On Duty');
+    const dailyTankSection = watchedSections.find(s => s.title === 'Daily Tank');
+
+    const onDutyBeforeValue = onDutySection?.readings.find(r => r.key === 'Before')?.value;
+    const dailyTankBeforeValue = dailyTankSection?.readings.find(r => r.key === 'Before')?.value;
 
     const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
     const dailyTankBefore = parseFloat(dailyTankBeforeValue || '0');
@@ -161,7 +164,10 @@ export default function LogbookPage() {
         if (othersSectionIndex !== -1) {
             const used4HoursReadingIndex = watchedSections[othersSectionIndex].readings.findIndex(r => r.key === 'USED 4 Hours');
             if (used4HoursReadingIndex !== -1) {
-                form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, '0', { shouldValidate: true });
+                const currentValue = form.getValues(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`);
+                if (currentValue !== '0.00' && currentValue !== '0') {
+                    form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, '0.00', { shouldValidate: true });
+                }
             }
         }
     }
@@ -209,7 +215,7 @@ export default function LogbookPage() {
       const form = e.currentTarget.form;
       if (!form) return;
 
-      const focusable = Array.from(form.querySelectorAll('input, textarea, button, select'));
+      const focusable = Array.from(form.querySelectorAll('input:not([readonly]), textarea, button, select'));
       const index = focusable.indexOf(e.currentTarget);
       
       const nextElement = focusable[index + 1];
@@ -329,5 +335,7 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
 
     
