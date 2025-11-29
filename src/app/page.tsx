@@ -169,7 +169,7 @@ export default function DashboardPage() {
                 </AlertDialog>
                 <Button 
                     size="icon" 
-                    className={cn("h-8 w-8", settings.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-muted-foreground hover:bg-slate-500")}
+                    className={cn("h-8 w-8", settings.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
                     onClick={handleGeneratorToggle}
                 >
                     {settings.generatorStatus === 'on' ? <PowerOff /> : <Power />}
