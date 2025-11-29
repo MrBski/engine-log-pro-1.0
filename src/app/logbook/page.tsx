@@ -150,26 +150,19 @@ export default function LogbookPage() {
     const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
     const dailyTankBefore = parseFloat(dailyTankBeforeValue || '0');
 
-    if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore) && onDutyBefore > 0 && dailyTankBefore > 0) {
+    const othersSectionIndex = watchedSections.findIndex(s => s.title === 'Others');
+    const used4HoursReadingIndex = watchedSections[othersSectionIndex]?.readings.findIndex(r => r.key === 'USED 4 Hours');
+
+    if (othersSectionIndex !== -1 && used4HoursReadingIndex !== -1) {
+      if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore) && onDutyBefore > 0 && dailyTankBefore > 0) {
         const used4Hours = (onDutyBefore - dailyTankBefore) * 21;
-        const othersSectionIndex = watchedSections.findIndex(s => s.title === 'Others');
-        if (othersSectionIndex !== -1) {
-            const used4HoursReadingIndex = watchedSections[othersSectionIndex].readings.findIndex(r => r.key === 'USED 4 Hours');
-            if (used4HoursReadingIndex !== -1) {
-                form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toFixed(2), { shouldValidate: true });
-            }
+        form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toFixed(2), { shouldValidate: true });
+      } else {
+        const currentValue = form.getValues(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`);
+        if (currentValue !== "0.00") {
+             form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, "0.00", { shouldValidate: true });
         }
-    } else {
-        const othersSectionIndex = watchedSections.findIndex(s => s.title === 'Others');
-        if (othersSectionIndex !== -1) {
-            const used4HoursReadingIndex = watchedSections[othersSectionIndex].readings.findIndex(r => r.key === 'USED 4 Hours');
-            if (used4HoursReadingIndex !== -1) {
-                const currentValue = form.getValues(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`);
-                if (currentValue !== '0.00' && currentValue !== '0') {
-                    form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, '0.00', { shouldValidate: true });
-                }
-            }
-        }
+      }
     }
   }, [watchedSections, form]);
 
@@ -335,6 +328,8 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
 
     
 
