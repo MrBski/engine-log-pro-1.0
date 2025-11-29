@@ -30,7 +30,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
           <Anchor className="size-8 text-sidebar-primary" />
           <span className="text-xl font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-            MarineLogix
+            Engine log pro
           </span>
         </div>
       </SidebarHeader>

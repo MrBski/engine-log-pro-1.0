@@ -7,7 +7,7 @@ import BottomNav from '@/components/bottom-nav';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'MarineLogix',
+  title: 'Engine log pro',
   description: 'Offline-first engine log and inventory management for maritime professionals.',
 };
 
