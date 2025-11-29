@@ -17,6 +17,7 @@ import { AppHeader } from '@/components/app-header';
 import { format } from 'date-fns';
 
 const readingSchema = z.object({
+  id: z.string().optional(),
   key: z.string(),
   value: z.string(),
   unit: z.string(),
@@ -94,7 +95,7 @@ export const initialSections: LogFormData['sections'] = [
     {
       title: 'Daily Tank Before On Duty',
       readings: [
-        { key: 'Before', value: '', unit: 'L' },
+        { key: 'Before', value: '', unit: 'cm' },
       ],
     },
     {
@@ -155,12 +156,12 @@ export default function LogbookPage() {
 
     if (othersSectionIndex !== -1 && used4HoursReadingIndex !== -1) {
       if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore) && onDutyBefore > 0 && dailyTankBefore > 0) {
-        const used4Hours = (onDutyBefore - dailyTankBefore) * 21;
-        form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toFixed(2), { shouldValidate: true });
+        const used4Hours = ((onDutyBefore - dailyTankBefore) * 21) / 4;
+        form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toFixed(2), { shouldValidate: false });
       } else {
         const currentValue = form.getValues(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`);
-        if (currentValue !== "0.00") {
-             form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, "0.00", { shouldValidate: true });
+        if (currentValue !== "0.00" && currentValue !== "") {
+             form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, "0.00", { shouldValidate: false });
         }
       }
     }
@@ -328,9 +329,5 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
-
-    
 
     
