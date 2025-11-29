@@ -1,12 +1,12 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { 
     getInitialData, 
     type AppSettings, 
     type EngineLog, 
-    type InventoryItem, 
+    type InventoryItem,
     type ActivityLog, 
     type LogSection 
 } from '@/lib/data';
@@ -41,19 +41,26 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
     const { user } = useAuth();
+    const [isFirebaseReady, setIsFirebaseReady] = useState(false);
+
+    useEffect(() => {
+        setIsFirebaseReady(!!db);
+    }, []);
 
     // Settings
-    const settingsRef = doc(db, 'app-data', 'settings');
+    const settingsRef = isFirebaseReady ? doc(db, 'app-data', 'settings') : null;
     const [settings, loadingSettings, errorSettings] = useDocumentData(settingsRef);
     const updateSettings = async (newSettings: Partial<AppSettings>) => {
+        if (!settingsRef) return;
         await setDoc(settingsRef, newSettings, { merge: true });
     };
 
     // Logs
-    const logsCol = collection(db, 'logs');
-    const logsQuery = query(logsCol, orderBy('timestamp', 'desc'));
+    const logsCol = isFirebaseReady ? collection(db, 'logs') : null;
+    const logsQuery = logsCol ? query(logsCol, orderBy('timestamp', 'desc')) : null;
     const [logs, loadingLogs, errorLogs] = useCollectionData(logsQuery, { idField: 'id' });
     const addLog = async (log: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
+        if (!logsCol) return;
         const newLog = {
             ...log,
             timestamp: Timestamp.fromDate(log.timestamp),
@@ -61,26 +68,28 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await addDoc(logsCol, newLog);
     };
     const deleteLog = async (logId: string) => {
+        if (!db) return;
         await deleteDoc(doc(db, 'logs', logId));
-        // Also delete associated activity log if needed
-        // This requires a query, which can be complex. For now, we leave orphaned activities.
     };
 
     // Inventory
-    const invCol = collection(db, 'inventory');
+    const invCol = isFirebaseReady ? collection(db, 'inventory') : null;
     const [inventory, loadingInv, errorInv] = useCollectionData(invCol, { idField: 'id' });
     const addInventoryItem = async (item: Omit<InventoryItem, 'id'>) => {
+        if (!invCol) return;
         await addDoc(invCol, item);
     };
     const updateInventoryItem = async (itemId: string, updates: Partial<InventoryItem>) => {
+        if (!db) return;
         await setDoc(doc(db, 'inventory', itemId), updates, { merge: true });
     };
 
     // Activity Log
-    const activityCol = collection(db, 'activity');
-    const activityQuery = query(activityCol, orderBy('timestamp', 'desc'));
+    const activityCol = isFirebaseReady ? collection(db, 'activity') : null;
+    const activityQuery = activityCol ? query(activityCol, orderBy('timestamp', 'desc')) : null;
     const [activityLog, loadingActivity, errorActivity] = useCollectionData(activityQuery, { idField: 'id' });
     const addActivityLog = async (activity: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
+        if (!activityCol) return;
         const newActivity = {
             ...activity,
             timestamp: Timestamp.fromDate(activity.timestamp),
@@ -88,13 +97,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await addDoc(activityCol, newActivity);
     };
     
-    // Logbook Sections (stored as a single document)
-    const logbookRef = doc(db, 'app-data', 'logbookSections');
+    // Logbook Sections
+    const logbookRef = isFirebaseReady ? doc(db, 'app-data', 'logbookSections') : null;
     const [logbookData, loadingLogbook, errorLogbook] = useDocumentData(logbookRef);
     const updateLogbookSections = async (sections: LogSection[]) => {
+        if (!logbookRef) return;
         await setDoc(logbookRef, { sections });
     };
 
+    if (!isFirebaseReady) {
+        // Don't try to render anything that depends on Firebase if it's not ready.
+        // The AuthProvider will show a more specific error message.
+        return null;
+    }
 
     if (errorSettings || errorLogs || errorInv || errorActivity || errorLogbook) {
         if(errorSettings) console.error("Firestore settings error:", errorSettings);
@@ -105,10 +120,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return <div className="flex h-screen items-center justify-center">Error loading data. Check console for details.</div>;
     }
 
-    // Combine all loading states
     const loading = loadingSettings || loadingLogs || loadingInv || loadingActivity || loadingLogbook;
     
-    // Use initial data as fallback while loading or if data is undefined
     const initialData = getInitialData();
     const data: DataContextType = {
         settings: settings || initialData.settings,
