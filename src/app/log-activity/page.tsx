@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
-import { getInitialData, type ActivityLog, type EngineLog } from "@/lib/data";
+import { getInitialData, type ActivityLog, type EngineLog, type EngineReading } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
 import { Trash2, History, FileJson, Archive, Eye } from "lucide-react";
@@ -19,26 +19,70 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useState } from "react";
+import { initialSections } from "@/app/logbook/page";
+import { cn } from "@/lib/utils";
+
+const sectionColors: { [key: string]: string } = {
+    'M.E Port Side': 'bg-red-600',
+    'M.E Starboard': 'bg-green-600',
+    'Generator': 'bg-sky-600',
+    'Flowmeter': 'bg-amber-600',
+};
 
 function LogEntryCard({ log }: { log: EngineLog }) {
+
+    const getReadingsForSection = (title: string) => {
+        return log.readings.filter(r => r.key.startsWith(title));
+    }
+
+    const sections = initialSections.map(s => ({
+        ...s,
+        readings: getReadingsForSection(s.title)
+    })).filter(s => s.readings.length > 0);
+
+    const renderReading = (reading: EngineReading) => (
+        <div key={reading.id} className="flex items-center border-b border-white/5 py-0.5">
+            <label className="w-1/2 font-medium text-xs text-muted-foreground">
+                {reading.key.replace(/.*? - /g, '')}
+            </label>
+            <div className="w-1/2 text-right font-mono text-xs font-semibold">
+                {reading.value} <span className="text-muted-foreground/50">{reading.unit}</span>
+            </div>
+        </div>
+    );
+
     return (
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-3xl">
             <DialogHeader>
-                <DialogTitle>Engine Log Details</DialogTitle>
-                <DialogDescription>
-                    Recorded by {log.officer} on {new Date(log.timestamp).toLocaleString()}
-                </DialogDescription>
+                <DialogTitle>Engine Log Preview</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 text-sm py-4">
-                {log.readings.map(reading => (
-                    <div key={reading.id} className="flex justify-between">
-                        <span className="text-muted-foreground">{reading.key.replace(/M\.E (Port Side|Starboard) - /g, '').replace('Generator - ', '')}</span>
-                        <span className="font-medium">{reading.value} {reading.unit}</span>
+            <div className="max-h-[80vh] overflow-y-auto">
+                <div className="space-y-2 bg-card p-2 rounded-lg text-sm">
+                    <div className="font-bold text-center text-base h-8 flex items-center justify-center bg-muted/50 rounded-md">
+                        {new Date(log.timestamp).toLocaleString()}
                     </div>
-                ))}
-                <div className="pt-2">
-                    <p className="font-medium">Notes:</p>
-                    <p className="text-muted-foreground">{log.notes}</p>
+                    <div className="grid md:grid-cols-2 gap-2">
+                        {sections.map(section => (
+                            <div key={section.title} className="space-y-1 p-1 border border-muted-foreground/50 rounded-sm">
+                                <h3 className={cn("font-bold text-center p-1.5 my-2 rounded-md text-primary-foreground text-xs", sectionColors[section.title] || 'bg-gray-500')}>
+                                    {section.title}
+                                </h3>
+                                {section.readings.map(renderReading)}
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <div className="space-y-1 pt-2">
+                        <div className="text-center space-y-0.5">
+                            <div className="h-6 text-center font-semibold flex items-center justify-center rounded-md bg-accent text-accent-foreground">
+                                {log.officer}
+                            </div>
+                        </div>
+                        <div className="text-center font-bold p-2 rounded-md bg-muted min-h-[40px] flex items-center justify-center text-sm mt-2">
+                           {log.notes}
+                        </div>
+                    </div>
+
                 </div>
             </div>
             <DialogFooter>
@@ -97,6 +141,9 @@ export default function LogActivityPage() {
                                         {activity.type === 'engine' ? `by ${activity.officer}` : categoryMapping[activity.category || 'other']}
                                     </span>
                                 </p>
+                                {activity.type === 'inventory' && (
+                                     <p className="text-xs text-muted-foreground">{activity.notes}</p>
+                                )}
                             </div>
                         </div>
 

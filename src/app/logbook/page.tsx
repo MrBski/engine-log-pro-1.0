@@ -37,7 +37,7 @@ const logSchema = z.object({
 
 type LogFormData = z.infer<typeof logSchema>;
 
-const initialSections: LogFormData['sections'] = [
+export const initialSections: LogFormData['sections'] = [
     {
       title: 'M.E Port Side',
       readings: [
