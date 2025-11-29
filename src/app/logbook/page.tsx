@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
-import { getInitialData, type EngineLog, type AppSettings } from '@/lib/data';
+import { getInitialData, type EngineLog, type AppSettings, type ActivityLog } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { AppHeader } from '@/components/app-header';
 import { format } from 'date-fns';
@@ -95,6 +95,7 @@ const sectionColors: { [key: string]: string } = {
 
 export default function LogbookPage() {
   const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
+  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
   const [settings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
   const { toast } = useToast();
 
@@ -130,6 +131,13 @@ export default function LogbookPage() {
       notes: values.condition || 'No conditions noted.',
     };
     setLogs(prevLogs => [newLog, ...prevLogs]);
+
+    const newActivity: ActivityLog = {
+        ...newLog,
+        type: 'engine',
+    };
+    setActivityLog(prev => [newActivity, ...prev]);
+
     toast({ title: "Success", description: "New engine log has been recorded." });
     form.reset({
         timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),

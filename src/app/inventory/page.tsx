@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
-import { getInitialData, type InventoryItem, type InventoryCategory } from '@/lib/data';
+import { getInitialData, type InventoryItem, type InventoryCategory, type ActivityLog } from '@/lib/data';
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,7 @@ const useItemSchema = z.object({
 
 export default function InventoryPage() {
   const [inventory, setInventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
+  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -60,6 +61,17 @@ export default function InventoryPage() {
   const handleAddItem = (values: z.infer<typeof itemSchema>) => {
     const newItem: InventoryItem = { id: `item-${Date.now()}`, ...values };
     setInventory(prev => [...prev, newItem]);
+    
+    const newActivity: ActivityLog = {
+      id: `activity-${Date.now()}`,
+      type: 'inventory',
+      timestamp: new Date().toISOString(),
+      name: newItem.name,
+      notes: `Added ${newItem.stock} ${newItem.unit} to stock.`,
+      category: newItem.category,
+    };
+    setActivityLog(prev => [newActivity, ...prev]);
+
     toast({ title: "Success", description: `${newItem.name} added to inventory.` });
     addForm.reset();
     setIsAddDialogOpen(false);
@@ -76,6 +88,17 @@ export default function InventoryPage() {
         return;
     }
     setInventory(prev => prev.map(item => item.id === itemToUse.id ? { ...item, stock: item.stock - values.amount } : item));
+    
+    const newActivity: ActivityLog = {
+      id: `activity-${Date.now()}`,
+      type: 'inventory',
+      timestamp: new Date().toISOString(),
+      name: itemToUse.name,
+      notes: `Used ${values.amount} ${itemToUse.unit}.`,
+      category: itemToUse.category,
+    };
+    setActivityLog(prev => [newActivity, ...prev]);
+    
     toast({ title: "Success", description: `${values.amount} ${itemToUse.unit} of ${itemToUse.name} used.` });
     useFormInstance.reset();
     setIsUseDialogOpen(false);

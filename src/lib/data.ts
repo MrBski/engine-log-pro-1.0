@@ -24,6 +24,10 @@ export type InventoryItem = {
   lowStockThreshold: number;
 };
 
+export type ActivityLog = 
+  | ({ type: 'engine' } & EngineLog)
+  | ({ type: 'inventory'; notes: string; name: string; category: InventoryCategory } & { id: string; timestamp: string });
+
 export type AppSettings = {
   shipName: string;
   officers: string[];
@@ -56,5 +60,21 @@ export const getInitialData = () => ({
       ],
       notes: 'All systems normal. Minor vibration noted on shaft.',
     },
-  ],
+  ] as EngineLog[],
+  activityLog: [
+      {
+        id: 'log-1',
+        type: 'engine',
+        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+        officer: 'Chief Engineer',
+        readings: [
+          { id: 'r1', key: 'M.E Port Side - RPM', value: '85', unit: 'rpm' },
+          { id: 'r2', key: 'M.E Port Side - L.O. PRESS', value: '4.5', unit: 'bar' },
+          { id: 'r3', key: 'M.E Starboard - RPM', value: '85', unit: 'rpm' },
+          { id: 'r4', key: 'M.E Starboard - L.O. PRESS', value: '4.6', unit: 'bar' },
+          { id: 'r5', key: 'Generator - VOLTS', value: '440', unit: 'V' },
+        ],
+        notes: 'All systems normal. Minor vibration noted on shaft.',
+      },
+  ] as ActivityLog[],
 });
