@@ -97,8 +97,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
     if (errorSettings || errorLogs || errorInv || errorActivity || errorLogbook) {
-        console.error({ errorSettings, errorLogs, errorInv, errorActivity, errorLogbook });
-        return <div className="flex h-screen items-center justify-center">Error loading data. Check console.</div>;
+        if(errorSettings) console.error("Firestore settings error:", errorSettings);
+        if(errorLogs) console.error("Firestore logs error:", errorLogs);
+        if(errorInv) console.error("Firestore inventory error:", errorInv);
+        if(errorActivity) console.error("Firestore activity log error:", errorActivity);
+        if(errorLogbook) console.error("Firestore logbook sections error:", errorLogbook);
+        return <div className="flex h-screen items-center justify-center">Error loading data. Check console for details.</div>;
     }
 
     // Combine all loading states
