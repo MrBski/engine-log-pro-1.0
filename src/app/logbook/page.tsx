@@ -21,8 +21,8 @@ import Link from 'next/link';
 const readingSchema = z.object({
   id: z.string(),
   key: z.string(),
-  value: z.string(),
   unit: z.string(),
+  value: z.string(),
 });
 
 const logSectionSchema = z.object({
@@ -54,7 +54,7 @@ export default function LogbookPage() {
   const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
   const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
   const [settings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
-  const [logbookSections, setLogbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
+  const [logbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,11 +79,12 @@ export default function LogbookPage() {
     name: "sections",
   });
   
-  const watchedSections = form.watch('sections');
-
+  // Watch specific fields for calculation
+  const watchedSectionsForCalc = form.watch('sections');
+  
+  // Effect for initialization
   useEffect(() => {
     if (isClient) {
-      // Set initial form values
       const dynamicDefaultValues = {
         timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         sections: logbookSections.map(section => ({
@@ -96,47 +97,54 @@ export default function LogbookPage() {
       };
       form.reset(dynamicDefaultValues);
       setIsLoading(false);
-
-      // Start watching for changes to calculate values
-      const subscription = form.watch((value, { name, type }) => {
-        const sections = value.sections || [];
-        
-        let onDutyBeforeValueStr: string | undefined;
-        let dailyTankBeforeValueStr: string | undefined;
-        let used4HoursSectionIndex: number | undefined;
-        let used4HoursReadingIndex: number | undefined;
-
-        sections.forEach((section, sIdx) => {
-          section?.readings?.forEach((reading, rIdx) => {
-            if (reading.id === 'onduty_before') {
-              onDutyBeforeValueStr = reading.value;
-            }
-            if (reading.id === 'daily_before') {
-              dailyTankBeforeValueStr = reading.value;
-            }
-            if (reading.id === 'other_used') {
-              used4HoursSectionIndex = sIdx;
-              used4HoursReadingIndex = rIdx;
-            }
-          });
-        });
-        
-        if (used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
-          const onDutyBefore = parseFloat(onDutyBeforeValueStr || '');
-          const dailyTankBefore = parseFloat(dailyTankBeforeValueStr || '');
-
-          if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
-            const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
-            form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: false });
-          } else {
-            form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
-          }
-        }
-      });
-      
-      return () => subscription.unsubscribe();
     }
   }, [isClient, logbookSections, settings.officers, form]);
+
+  // Effect for calculation, separated from initialization
+  useEffect(() => {
+    if (!watchedSectionsForCalc || watchedSectionsForCalc.length === 0) {
+      return;
+    }
+    
+    let onDutyBeforeValueStr: string | undefined;
+    let dailyTankBeforeValueStr: string | undefined;
+    let used4HoursSectionIndex: number | undefined;
+    let used4HoursReadingIndex: number | undefined;
+
+    watchedSectionsForCalc.forEach((section, sIdx) => {
+        section?.readings?.forEach((reading, rIdx) => {
+            if (reading.id === 'onduty_before') {
+                onDutyBeforeValueStr = reading.value;
+            }
+            if (reading.id === 'daily_before') {
+                dailyTankBeforeValueStr = reading.value;
+            }
+            if (reading.id === 'other_used') {
+                used4HoursSectionIndex = sIdx;
+                used4HoursReadingIndex = rIdx;
+            }
+        });
+    });
+
+    if (used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
+        const onDutyBefore = parseFloat(onDutyBeforeValueStr || '');
+        const dailyTankBefore = parseFloat(dailyTankBeforeValueStr || '');
+        const currentValue = form.getValues(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`);
+
+        if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
+            const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
+            // Only update if the value has changed to prevent infinite loops
+            if (currentValue !== used4Hours.toString()) {
+                form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: false });
+            }
+        } else {
+             // Only update if the value has changed
+             if (currentValue !== "") {
+                form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
+             }
+        }
+    }
+  }, [watchedSectionsForCalc, form]);
 
 
   function onSubmit(values: LogFormData) {
@@ -366,5 +374,3 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
