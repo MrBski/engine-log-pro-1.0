@@ -172,21 +172,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     // Overall loading is true if auth is loading, OR if the user is logged in and data is loading.
     const loading = isAuthLoading || (!!user && (loadingSettings || loadingLogs || loadingInv || loadingActivity || loadingLogbook));
     
+    // Use initial data ONLY when not logged in.
+    // Once logged in, the hooks' own state (even if 'undefined' during load) is the source of truth.
     const initialData = getInitialData();
-    // Provide initial data only if user is not logged in or data is still loading
-    // Once a hook resolves, its data (even if it's an empty array) should be used.
     const data: DataContextType = {
-        settings: !user || loadingSettings ? initialData.settings : settings,
+        settings: user ? settings : initialData.settings,
         updateSettings,
-        logs: !user || loadingLogs ? initialData.logs : (logs as EngineLog[]),
+        logs: user ? (logs as EngineLog[]) : initialData.logs,
         addLog,
         deleteLog,
-        inventory: !user || loadingInv ? initialData.inventory : (inventory as InventoryItem[]),
+        inventory: user ? (inventory as InventoryItem[]) : initialData.inventory,
         addInventoryItem,
         updateInventoryItem,
-        activityLog: !user || loadingActivity ? initialData.activityLog : (activityLog as ActivityLog[]),
+        activityLog: user ? (activityLog as ActivityLog[]) : initialData.activityLog,
         addActivityLog,
-        logbookSections: !user || loadingLogbook ? initialData.logbookSections : (logbookData?.sections as LogSection[]),
+        logbookSections: user ? logbookData?.sections : initialData.logbookSections,
         updateLogbookSections,
         loading,
     }
@@ -207,5 +207,3 @@ export const useData = () => {
   }
   return context;
 };
-
-    
