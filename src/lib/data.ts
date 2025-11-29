@@ -1,3 +1,17 @@
+
+export type Reading = {
+  id: string;
+  key: string;
+  unit: string;
+  value?: string;
+};
+
+export type LogSection = {
+  id: string;
+  title: string;
+  readings: Reading[];
+}
+
 export type EngineReading = {
   id: string;
   key: string; // e.g., "Main Engine RPM", or "M.E Port Side - RPM"
@@ -77,4 +91,79 @@ export const getInitialData = () => ({
         notes: 'All systems normal. Minor vibration noted on shaft.',
       },
   ] as ActivityLog[],
+  logbookSections: [
+    {
+      id: 'section-1',
+      title: 'M.E Port Side',
+      readings: [
+        { id: 'me_port_rpm', key: 'RPM', unit: 'rpm' },
+        { id: 'me_port_lo_press', key: 'L.O. PRESS', unit: 'bar' },
+        { id: 'me_port_exhaust1', key: 'Exhaust 1', unit: '°C' },
+        { id: 'me_port_exhaust2', key: 'Exhaust 2', unit: '°C' },
+        { id: 'me_port_radiator', key: 'Radiator', unit: '°C' },
+        { id: 'me_port_sw_temp', key: 'SW Temp', unit: '°C' },
+        { id: 'me_port_fw_in', key: 'F.W. COOLERS In', unit: '°C' },
+        { id: 'me_port_fw_out', key: 'F.W. COOLERS Out', unit: '°C' },
+        { id: 'me_port_lo_in', key: 'L.O. COOLERS In', unit: '°C' },
+        { id: 'me_port_lo_out', key: 'L.O. COOLERS Out', unit: '°C' },
+      ],
+    },
+    {
+      id: 'section-2',
+      title: 'M.E Starboard',
+      readings: [
+        { id: 'me_sb_rpm', key: 'RPM', unit: 'rpm' },
+        { id: 'me_sb_lo_press', key: 'L.O. PRESS', unit: 'bar' },
+        { id: 'me_sb_exhaust1', key: 'Exhaust 1', unit: '°C' },
+        { id: 'me_sb_exhaust2', key: 'Exhaust 2', unit: '°C' },
+        { id: 'me_sb_radiator', key: 'Radiator', unit: '°C' },
+        { id: 'me_sb_sw_temp', key: 'SW Temp', unit: '°C' },
+        { id: 'me_sb_fw_in', key: 'F.W. COOLERS In', unit: '°C' },
+        { id: 'me_sb_fw_out', key: 'F.W. COOLERS Out', unit: '°C' },
+        { id: 'me_sb_lo_in', key: 'L.O. COOLERS In', unit: '°C' },
+        { id: 'me_sb_lo_out', key: 'L.O. COOLERS Out', unit: '°C' },
+      ],
+    },
+    {
+      id: 'section-3',
+      title: 'Generator',
+      readings: [
+        { id: 'gen_lo_press', key: 'L.O. PRESS', unit: 'bar' },
+        { id: 'gen_fw_temp', key: 'F.W. TEMP', unit: '°C' },
+        { id: 'gen_volts', key: 'VOLTS', unit: 'V' },
+        { id: 'gen_ampere', key: 'AMPERE', unit: 'A' },
+      ],
+    },
+    {
+        id: 'section-4',
+        title: 'Flowmeter',
+        readings: [
+            { id: 'flow_before', key: 'Before', unit: 'L' },
+            { id: 'flow_after', key: 'After', unit: 'L' },
+        ],
+    },
+    {
+      id: 'section-5',
+      title: 'Daily Tank',
+      readings: [
+          { id: 'daily_before', key: 'Before', unit: 'cm' },
+          { id: 'daily_after', key: 'After', unit: 'L' },
+      ],
+    },
+    {
+      id: 'section-6',
+      title: 'Daily Tank Before On Duty',
+      readings: [
+        { id: 'onduty_before', key: 'Before', unit: 'cm' },
+      ],
+    },
+    {
+        id: 'section-7',
+        title: 'Others',
+        readings: [
+            { id: 'other_rob', key: 'RoB', unit: 'L' },
+            { id: 'other_used', key: 'USED 4 Hours', unit: 'L' },
+        ]
+    }
+  ] as LogSection[],
 });

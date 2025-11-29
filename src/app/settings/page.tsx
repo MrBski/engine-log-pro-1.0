@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm } from 'react-hook-form';
@@ -10,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type AppSettings } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, UserPlus } from 'lucide-react';
+import { Trash2, UserPlus, BookCopy } from 'lucide-react';
 import { AppHeader } from '@/components/app-header';
+import Link from 'next/link';
 
 const settingsSchema = z.object({
   shipName: z.string().min(1, 'Ship name is required.'),
@@ -115,6 +117,20 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+         <Card className="md:col-span-2">
+            <CardHeader>
+                <CardTitle>Logbook Configuration</CardTitle>
+                <CardDescription>Customize the sections and fields that appear in the engine logbook.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button asChild variant="outline">
+                    <Link href="/settings/logbook">
+                        <BookCopy className="mr-2 h-4 w-4" />
+                        Customize Logbook
+                    </Link>
+                </Button>
+            </CardContent>
+         </Card>
       </div>
     </div>
   );

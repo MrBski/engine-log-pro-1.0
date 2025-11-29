@@ -1,7 +1,7 @@
 
 "use client";
 
-import { KeyboardEvent, useEffect } from 'react';
+import { KeyboardEvent, useEffect, useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -11,13 +11,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
-import { getInitialData, type EngineLog, type AppSettings, type ActivityLog } from '@/lib/data';
+import { getInitialData, type EngineLog, type AppSettings, type ActivityLog, type LogSection } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { AppHeader } from '@/components/app-header';
 import { format } from 'date-fns';
+import { AlertTriangle, Settings } from 'lucide-react';
+import Link from 'next/link';
 
 const readingSchema = z.object({
-  id: z.string().optional(),
+  id: z.string(),
   key: z.string(),
   value: z.string(),
   unit: z.string(),
@@ -38,75 +40,6 @@ const logSchema = z.object({
 
 type LogFormData = z.infer<typeof logSchema>;
 
-export const initialSections: LogFormData['sections'] = [
-    {
-      title: 'M.E Port Side',
-      readings: [
-        { id: 'me_port_rpm', key: 'RPM', value: '', unit: 'rpm' },
-        { id: 'me_port_lo_press', key: 'L.O. PRESS', value: '', unit: 'bar' },
-        { id: 'me_port_exhaust1', key: 'Exhaust 1', value: '', unit: '°C' },
-        { id: 'me_port_exhaust2', key: 'Exhaust 2', value: '', unit: '°C' },
-        { id: 'me_port_radiator', key: 'Radiator', value: '', unit: '°C' },
-        { id: 'me_port_sw_temp', key: 'SW Temp', value: '', unit: '°C' },
-        { id: 'me_port_fw_in', key: 'F.W. COOLERS In', value: '', unit: '°C' },
-        { id: 'me_port_fw_out', key: 'F.W. COOLERS Out', value: '', unit: '°C' },
-        { id: 'me_port_lo_in', key: 'L.O. COOLERS In', value: '', unit: '°C' },
-        { id: 'me_port_lo_out', key: 'L.O. COOLERS Out', value: '', unit: '°C' },
-      ],
-    },
-    {
-      title: 'M.E Starboard',
-      readings: [
-        { id: 'me_sb_rpm', key: 'RPM', value: '', unit: 'rpm' },
-        { id: 'me_sb_lo_press', key: 'L.O. PRESS', value: '', unit: 'bar' },
-        { id: 'me_sb_exhaust1', key: 'Exhaust 1', value: '', unit: '°C' },
-        { id: 'me_sb_exhaust2', key: 'Exhaust 2', value: '', unit: '°C' },
-        { id: 'me_sb_radiator', key: 'Radiator', value: '', unit: '°C' },
-        { id: 'me_sb_sw_temp', key: 'SW Temp', value: '', unit: '°C' },
-        { id: 'me_sb_fw_in', key: 'F.W. COOLERS In', value: '', unit: '°C' },
-        { id: 'me_sb_fw_out', key: 'F.W. COOLERS Out', value: '', unit: '°C' },
-        { id: 'me_sb_lo_in', key: 'L.O. COOLERS In', value: '', unit: '°C' },
-        { id: 'me_sb_lo_out', key: 'L.O. COOLERS Out', value: '', unit: '°C' },
-      ],
-    },
-    {
-      title: 'Generator',
-      readings: [
-        { id: 'gen_lo_press', key: 'L.O. PRESS', value: '', unit: 'bar' },
-        { id: 'gen_fw_temp', key: 'F.W. TEMP', value: '', unit: '°C' },
-        { id: 'gen_volts', key: 'VOLTS', value: '', unit: 'V' },
-        { id: 'gen_ampere', key: 'AMPERE', value: '', unit: 'A' },
-      ],
-    },
-    {
-        title: 'Flowmeter',
-        readings: [
-            { id: 'flow_before', key: 'Before', value: '', unit: 'L' },
-            { id: 'flow_after', key: 'After', value: '', unit: 'L' },
-        ],
-    },
-    {
-      title: 'Daily Tank',
-      readings: [
-          { id: 'daily_before', key: 'Before', value: '', unit: 'cm' },
-          { id: 'daily_after', key: 'After', value: '', unit: 'L' },
-      ],
-    },
-    {
-      title: 'Daily Tank Before On Duty',
-      readings: [
-        { id: 'onduty_before', key: 'Before', value: '', unit: 'cm' },
-      ],
-    },
-    {
-        title: 'Others',
-        readings: [
-            { id: 'other_rob', key: 'RoB', value: '', unit: 'L' },
-            { id: 'other_used', key: 'USED 4 Hours', value: '', unit: 'L' },
-        ]
-    }
-];
-
 const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
     'M.E Starboard': 'bg-green-600',
@@ -121,49 +54,84 @@ export default function LogbookPage() {
   const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
   const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
   const [settings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
+  const [logbookSections, setLogbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const form = useForm<LogFormData>({
     resolver: zodResolver(logSchema),
-    defaultValues: {
-      timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-      sections: initialSections,
-      onDutyEngineer: settings.officers.length > 0 ? settings.officers[0] : '',
-      dutyEngineerPosition: "Chief Engineer", // example default
-      condition: ""
-    },
+    // We will set default values dynamically in an effect
   });
+  
+  useEffect(() => {
+    if (isClient) {
+      const dynamicDefaultValues = {
+        timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+        sections: logbookSections.map(section => ({
+          ...section,
+          readings: section.readings.map(r => ({...r, value: ''}))
+        })),
+        onDutyEngineer: settings.officers.length > 0 ? settings.officers[0] : '',
+        dutyEngineerPosition: "Chief Engineer",
+        condition: ""
+      };
+      form.reset(dynamicDefaultValues);
+    }
+  }, [isClient, logbookSections, settings.officers, form.reset]);
+  
 
   const { fields: sectionFields } = useFieldArray({
     control: form.control,
     name: "sections",
   });
-  
-  const watchedSections = form.watch("sections");
 
   useEffect(() => {
     const subscription = form.watch((value, { name }) => {
-      if (name === 'sections.5.readings.0.value' || name === 'sections.4.readings.0.value') {
-        const onDutyBeforeValue = form.getValues('sections.5.readings.0.value');
-        const dailyTankBeforeValue = form.getValues('sections.4.readings.0.value');
+        // Find indices for calculation fields dynamically
+        let onDutyBeforeValue: string | undefined;
+        let dailyTankBeforeValue: string | undefined;
+        let used4HoursSectionIndex: number | undefined;
+        let used4HoursReadingIndex: number | undefined;
 
-        const onDutyBefore = parseFloat(onDutyBeforeValue);
-        const dailyTankBefore = parseFloat(dailyTankBeforeValue);
+        logbookSections.forEach((section, sIdx) => {
+            section.readings.forEach((reading, rIdx) => {
+                if (reading.id === 'onduty_before') onDutyBeforeValue = form.getValues(`sections.${sIdx}.readings.${rIdx}.value`);
+                if (reading.id === 'daily_before') dailyTankBeforeValue = form.getValues(`sections.${sIdx}.readings.${rIdx}.value`);
+                if (reading.id === 'other_used') {
+                    used4HoursSectionIndex = sIdx;
+                    used4HoursReadingIndex = rIdx;
+                }
+            });
+        });
         
-        const othersSectionIndex = 6;
-        const used4HoursReadingIndex = 1;
-
-        if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
-          const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
-          form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: false });
-        } else {
-          form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
+        // Ensure we are watching the correct fields
+        const onDutyFieldName = name?.match(/sections\.(\d+)\.readings\.(\d+)\.value/);
+        if(onDutyFieldName){
+            const sectionIndex = parseInt(onDutyFieldName[1]);
+            const readingIndex = parseInt(onDutyFieldName[2]);
+            const fieldId = logbookSections[sectionIndex]?.readings[readingIndex]?.id;
+            if (fieldId !== 'onduty_before' && fieldId !== 'daily_before') return;
         }
-      }
+
+
+        if (onDutyBeforeValue !== undefined && dailyTankBeforeValue !== undefined && used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
+            const onDutyBefore = parseFloat(onDutyBeforeValue);
+            const dailyTankBefore = parseFloat(dailyTankBeforeValue);
+            
+            if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
+                const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
+                form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: true, shouldDirty: true });
+            } else {
+                form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
+            }
+        }
     });
     return () => subscription.unsubscribe();
-  }, [form]);
-
+  }, [form, logbookSections]);
 
   function onSubmit(values: LogFormData) {
     const newLog: EngineLog = {
@@ -172,7 +140,7 @@ export default function LogbookPage() {
       officer: values.onDutyEngineer,
       readings: values.sections.flatMap(s => 
         s.readings.map(r => ({
-          id: `reading-${Date.now()}-${s.title}-${r.key}`,
+          id: r.id,
           key: `${s.title} - ${r.key}`,
           value: r.value,
           unit: r.unit,
@@ -185,19 +153,25 @@ export default function LogbookPage() {
     const newActivity: ActivityLog = {
         ...newLog,
         type: 'engine',
-        name: 'Engine Log Entry', // Added for consistency
-        category: 'main-engine' // Added for consistency
+        name: 'Engine Log Entry', 
+        category: 'main-engine' 
     };
     setActivityLog(prev => [newActivity, ...prev]);
 
     toast({ title: "Success", description: "New engine log has been recorded." });
-    form.reset({
+    
+    // Reset form with dynamic sections
+    const resetValues = {
         timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-        sections: initialSections,
+        sections: logbookSections.map(section => ({
+            ...section,
+            readings: section.readings.map(r => ({...r, value: ''}))
+        })),
         onDutyEngineer: settings.officers.length > 0 ? settings.officers[0] : '',
         dutyEngineerPosition: "Chief Engineer",
         condition: ""
-    });
+    };
+    form.reset(resetValues);
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -216,8 +190,42 @@ export default function LogbookPage() {
       }
     }
   };
-  
 
+  if (!isClient || logbookSections.length === 0) {
+    return (
+      <div className="flex flex-col gap-6">
+        <AppHeader />
+        <Card className="max-w-md mx-auto">
+            <CardHeader>
+                <CardTitle className="text-center">Logbook Not Configured</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center text-center space-y-4">
+                <AlertTriangle className="h-12 w-12 text-destructive" />
+                <p className="text-muted-foreground">
+                    Your logbook sheet is empty. Please configure the sections and fields you want to track.
+                </p>
+                <Button asChild>
+                    <Link href="/settings/logbook">
+                        <Settings className="mr-2 h-4 w-4" /> Configure Logbook
+                    </Link>
+                </Button>
+            </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  const findReadingById = (id: string) => {
+    for (const section of logbookSections) {
+      for (const reading of section.readings) {
+        if (reading.id === id) {
+          return reading;
+        }
+      }
+    }
+    return null;
+  }
+  
   return (
     <div className="flex flex-col gap-6">
       <AppHeader />
@@ -250,28 +258,32 @@ export default function LogbookPage() {
                   <h3 className={`font-bold text-center p-2 my-2 rounded-md text-primary-foreground text-sm ${sectionColors[section.title] || 'bg-gray-500'}`}>
                     {section.title}
                   </h3>
-                  {section.readings.map((reading, readingIndex) => (
-                    <FormField
-                      key={`${section.id}-${reading.id || readingIndex}`}
-                      control={form.control}
-                      name={`sections.${sectionIndex}.readings.${readingIndex}.value`}
-                      render={({ field }) => (
-                        <FormItem className="flex items-center">
-                          <FormLabel className="w-1/2 text-sm font-medium">{reading.key}</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="tel"
-                              inputMode="decimal"
-                              className="h-8 bg-card-foreground/5 text-right text-sm"
-                              readOnly={field.name === 'sections.6.readings.1.value'}
-                              {...field}
-                              onKeyDown={handleKeyDown}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  ))}
+                  {section.readings.map((reading, readingIndex) => {
+                    const originalReading = findReadingById(reading.id);
+                    const isReadOnly = originalReading?.id === 'other_used';
+                    return (
+                        <FormField
+                        key={reading.id}
+                        control={form.control}
+                        name={`sections.${sectionIndex}.readings.${readingIndex}.value`}
+                        render={({ field }) => (
+                            <FormItem className="flex items-center">
+                            <FormLabel className="w-1/2 text-sm font-medium">{originalReading?.key || 'N/A'}</FormLabel>
+                            <FormControl>
+                                <Input
+                                type="tel"
+                                inputMode="decimal"
+                                className={`h-8 bg-card-foreground/5 text-right text-sm ${isReadOnly ? 'font-bold' : ''}`}
+                                readOnly={isReadOnly}
+                                {...field}
+                                onKeyDown={handleKeyDown}
+                                />
+                            </FormControl>
+                            </FormItem>
+                        )}
+                        />
+                    )
+                  })}
                 </div>
               ))}
               
@@ -326,5 +338,3 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
