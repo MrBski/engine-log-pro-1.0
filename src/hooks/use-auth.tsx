@@ -102,9 +102,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   if (!auth && !isLoading) {
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
-            <div className="w-full max-w-md rounded-lg border border-destructive bg-card p-6 text-center text-card-foreground">
+            <div className="w-full max-w-lg rounded-lg border border-destructive bg-card p-6 text-center text-card-foreground">
                 <h1 className="text-xl font-bold text-destructive">Firebase Configuration Error</h1>
-                <p className="mt-2 text-muted-foreground">The application could not connect to Firebase. Please ensure you have created a <code>.env.local</code> file with the correct Firebase project credentials.</p>
+                <p className="mt-2 text-muted-foreground">The application could not connect to Firebase. This usually happens for one of two reasons:</p>
+                <ul className="mt-4 list-disc space-y-2 pl-5 text-left text-sm text-muted-foreground">
+                    <li>You haven't created the <strong>.env.local</strong> file for local development.</li>
+                    <li>You haven't added the Firebase credentials to the <strong>Environment Variables</strong> on your hosting platform (e.g., Vercel, Netlify).</li>
+                </ul>
             </div>
         </div>
     )
