@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useAuth } from "@/hooks/use-auth";
 
 function formatDuration(seconds: number) {
     const h = Math.floor(seconds / 3600);
@@ -23,12 +24,14 @@ function formatDuration(seconds: number) {
 }
 
 export default function DashboardPage() {
-  const [inventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
-  const [logs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
+  const [inventory] = useLocalStorage<InventoryItem[]>('inventory', []);
+  const [logs] = useLocalStorage<EngineLog[]>('logs', []);
   const [settings, setSettings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
-  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
+  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', []);
   const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+
 
   const [currentGeneratorRHS, setCurrentGeneratorRHS] = useState(settings.generatorRunningHours || 0);
 
@@ -55,7 +58,7 @@ export default function DashboardPage() {
       type: 'generator',
       timestamp: new Date().toISOString(),
       notes,
-      officer: settings.officers[0] || 'Chief Engineer',
+      officer: user?.name || 'System',
     };
     setActivityLog(prev => [newActivity, ...prev]);
   };

@@ -186,8 +186,8 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
 }
 
 export default function LogActivityPage() {
-    const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
-    const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
+    const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', []);
+    const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', []);
     const [logbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
     const { toast } = useToast();
     const [isMounted, setIsMounted] = useState(false);

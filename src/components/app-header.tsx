@@ -8,11 +8,15 @@ import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type AppSettings } from '@/lib/data';
 import { Icons } from './icons';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from './ui/button';
 
 
 export function AppHeader() {
   const pathname = usePathname();
   const [settings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
+  const { user, logout } = useAuth();
+
 
   const getBreadcrumb = () => {
     const parts = pathname.split('/').filter(p => p);
@@ -28,11 +32,12 @@ export function AppHeader() {
     }
     
     const part = parts[parts.length - 1];
-    const name = part.charAt(0).toUpperCase() + part.slice(1);
+    const name = part.charAt(0).toUpperCase() + part.slice(1).replace('-', ' ');
     const description = {
-        logbook: "Record and view all engine activities.",
-        inventory: "Manage all parts and supplies.",
-        settings: "Configure your application settings."
+        'logbook': "Record and view all engine activities.",
+        'inventory': "Manage all parts and supplies.",
+        'settings': "Configure your application settings.",
+        'log-activity': "View all recent activities."
     }[part] || `Manage ${name}`;
 
     return (
@@ -52,9 +57,12 @@ export function AppHeader() {
       <div className="flex items-center gap-4">
         <SyncStatus />
         <Avatar className="size-10">
-            <AvatarImage src="https://picsum.photos/seed/user/40/40" data-ai-hint="profile picture" alt="User" />
-            <AvatarFallback>CE</AvatarFallback>
+            <AvatarImage src={`https://picsum.photos/seed/${user?.name}/40/40`} data-ai-hint="profile picture" alt={user?.name} />
+            <AvatarFallback>{user?.name.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
+        <Button variant="ghost" size="icon" onClick={logout}>
+          <Icons.logout className="h-5 w-5" />
+        </Button>
       </div>
     </header>
   );

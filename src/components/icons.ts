@@ -1,3 +1,4 @@
+
 import {
   AlertCircle,
   Archive,
@@ -31,6 +32,7 @@ import {
   Zap,
   Anchor,
   AlertTriangle,
+  LogOut,
 } from 'lucide-react';
 
 export const Icons = {
@@ -66,4 +68,5 @@ export const Icons = {
   zap: Zap,
   logo: Anchor,
   warning: AlertTriangle,
+  logout: LogOut,
 };

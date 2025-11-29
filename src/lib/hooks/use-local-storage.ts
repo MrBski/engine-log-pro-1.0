@@ -1,15 +1,34 @@
+
 "use client"
 
 import { useState, useEffect, useCallback } from 'react';
 
+// A wrapper for window.localStorage that handles cleaning up on logout
+const storage = {
+  getItem: (key: string) => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(key);
+  },
+  setItem: (key: string, value: string) => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(key, value);
+    window.dispatchEvent(new Event('local-storage'));
+  },
+  clear: () => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.clear();
+    window.dispatchEvent(new Event('local-storage'));
+  }
+}
+
+
 export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
   const [storedValue, setStoredValue] = useState<T>(() => {
-    // This part runs only on the client, avoiding SSR issues.
     if (typeof window === "undefined") {
       return initialValue;
     }
     try {
-      const item = window.localStorage.getItem(key);
+      const item = storage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       console.error(error);
@@ -21,34 +40,49 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
     try {
       const valueToStore = value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(key, JSON.stringify(valueToStore));
-        window.dispatchEvent(new Event('local-storage')); // Notify other tabs/components
-      }
+      storage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
       console.error(error);
     }
   };
   
-  // Listen for changes from other tabs
-  const handleStorageChange = useCallback(() => {
-    if (typeof window === "undefined") return;
+  const handleStorageChange = useCallback((event?: StorageEvent | Event) => {
+    if (typeof window === 'undefined') return;
+
+    // Check if the event is a storage event and if the key matches
+    if (event instanceof StorageEvent && event.key !== key) {
+        return;
+    }
+
     try {
-        const item = window.localStorage.getItem(key);
-        if (item) {
-            setStoredValue(JSON.parse(item));
+        const item = storage.getItem(key);
+        if (item === null) {
+            // If item is null, it might have been cleared. Reset to initial.
+             if (JSON.stringify(storedValue) !== JSON.stringify(initialValue)) {
+                setStoredValue(initialValue);
+             }
+        } else {
+             const parsedItem = JSON.parse(item);
+             // Prevent infinite loops by checking if the value has actually changed
+             if (JSON.stringify(storedValue) !== JSON.stringify(parsedItem)) {
+                setStoredValue(parsedItem);
+             }
         }
     } catch (error) {
         console.log(error);
     }
-  }, [key]);
+  }, [key, initialValue, storedValue]);
 
   useEffect(() => {
-    // This effect should only run on the client.
     if (typeof window !== "undefined") {
-        handleStorageChange(); // sync on initial mount
-        window.addEventListener('local-storage', handleStorageChange);
+        window.addEventListener('storage', handleStorageChange); // For changes in other tabs
+        window.addEventListener('local-storage', handleStorageChange); // For changes in the same tab
+        
+        // Initial sync
+        handleStorageChange();
+
         return () => {
+          window.removeEventListener('storage', handleStorageChange);
           window.removeEventListener('local-storage', handleStorageChange);
         };
     }

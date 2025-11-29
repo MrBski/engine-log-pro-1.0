@@ -43,8 +43,8 @@ const useItemSchema = z.object({
 });
 
 export default function InventoryPage() {
-  const [inventory, setInventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
-  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
+  const [inventory, setInventory] = useLocalStorage<InventoryItem[]>('inventory', []);
+  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', []);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
   const { toast } = useToast();

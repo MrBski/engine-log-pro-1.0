@@ -51,8 +51,8 @@ const sectionColors: { [key: string]: string } = {
 };
 
 export default function LogbookPage() {
-  const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
-  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
+  const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', []);
+  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', []);
   const [settings, setSettings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
   const [logbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
   const { toast } = useToast();
@@ -287,7 +287,7 @@ export default function LogbookPage() {
                     <FormControl>
                       <Input 
                         type="datetime-local" 
-                        className="h-10 text-base font-bold text-center" 
+                        className="h-8 text-sm font-bold text-center" 
                         {...field}
                         onKeyDown={handleKeyDown}
                       />
@@ -297,8 +297,8 @@ export default function LogbookPage() {
               />
 
               {sectionFields.map((section, sectionIndex) => (
-                <div key={section.id} className="space-y-2">
-                  <h3 className={`font-bold text-center p-1.5 my-1 rounded-md text-primary-foreground text-xs ${sectionColors[section.title] || 'bg-gray-500'}`}>
+                <div key={section.id} className="space-y-1">
+                  <h3 className={`font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs ${sectionColors[section.title] || 'bg-gray-500'}`}>
                     {section.title}
                   </h3>
                   {section.readings.map((reading, readingIndex) => {
@@ -316,7 +316,7 @@ export default function LogbookPage() {
                                 <Input
                                 type="tel"
                                 inputMode="decimal"
-                                className={`h-8 bg-card-foreground/5 text-right text-xs ${isReadOnly ? 'font-bold' : ''}`}
+                                className={`h-7 bg-card-foreground/5 text-right text-xs ${isReadOnly ? 'font-bold' : ''}`}
                                 readOnly={isReadOnly}
                                 {...field}
                                 value={field.value ?? ''}
@@ -331,8 +331,8 @@ export default function LogbookPage() {
                 </div>
               ))}
               
-              <div className="pt-2 space-y-2">
-                <h3 className="text-muted-foreground bg-muted p-1.5 my-1 rounded-md text-center font-bold text-xs">On Duty Engineer</h3>
+              <div className="pt-1 space-y-1">
+                <h3 className="text-muted-foreground bg-muted p-1 my-1 rounded-md text-center font-bold text-xs">On Duty Engineer</h3>
                 <FormField
                   control={form.control}
                   name="onDutyEngineer"
@@ -357,8 +357,8 @@ export default function LogbookPage() {
                 />
               </div>
 
-               <div className="pt-2">
-                <h3 className="text-muted-foreground bg-muted p-1.5 my-1 rounded-md text-center font-bold text-xs">Condition</h3>
+               <div className="pt-1">
+                <h3 className="text-muted-foreground bg-muted p-1 my-1 rounded-md text-center font-bold text-xs">Condition</h3>
                 <FormField
                   control={form.control}
                   name="condition"
