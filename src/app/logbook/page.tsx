@@ -93,49 +93,53 @@ export default function LogbookPage() {
   const watchedSections = form.watch('sections');
 
   useEffect(() => {
-      if (!watchedSections || watchedSections.length === 0) return;
+    const subscription = form.watch((value, { name, type }) => {
+        if (name?.includes('readings')) {
+            const values = form.getValues();
+            let onDutyBeforeValue: string | undefined;
+            let dailyTankBeforeValue: string | undefined;
 
-      let onDutyBeforeValue: string | undefined;
-      let dailyTankBeforeValue: string | undefined;
+            values.sections?.forEach(section => {
+                section.readings.forEach(reading => {
+                    if (reading.id === 'onduty_before') {
+                        onDutyBeforeValue = reading.value;
+                    }
+                    if (reading.id === 'daily_before') {
+                        dailyTankBeforeValue = reading.value;
+                    }
+                });
+            });
 
-      watchedSections.forEach(section => {
-        section.readings.forEach(reading => {
-          if (reading.id === 'onduty_before') {
-            onDutyBeforeValue = reading.value;
-          }
-          if (reading.id === 'daily_before') {
-            dailyTankBeforeValue = reading.value;
-          }
-        });
-      });
-  
-      let used4HoursSectionIndex: number | undefined;
-      let used4HoursReadingIndex: number | undefined;
-  
-      logbookSections.forEach((section, sIdx) => {
-        const rIdx = section.readings.findIndex(r => r.id === 'other_used');
-        if (rIdx !== -1) {
-          used4HoursSectionIndex = sIdx;
-          used4HoursReadingIndex = rIdx;
-        }
-      });
-      
-      if (used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
-        if (onDutyBeforeValue != null && dailyTankBeforeValue != null && onDutyBeforeValue !== '' && dailyTankBeforeValue !== '') {
-            const onDutyBefore = parseFloat(onDutyBeforeValue);
-            const dailyTankBefore = parseFloat(dailyTankBeforeValue);
-            
-            if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
-                const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
-                form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldDirty: true });
-            } else {
-              form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldDirty: true });
+            let used4HoursSectionIndex: number | undefined;
+            let used4HoursReadingIndex: number | undefined;
+        
+            logbookSections.forEach((section, sIdx) => {
+                const rIdx = section.readings.findIndex(r => r.id === 'other_used');
+                if (rIdx !== -1) {
+                    used4HoursSectionIndex = sIdx;
+                    used4HoursReadingIndex = rIdx;
+                }
+            });
+
+            if (used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
+                if (onDutyBeforeValue != null && dailyTankBeforeValue != null && onDutyBeforeValue !== '' && dailyTankBeforeValue !== '') {
+                    const onDutyBefore = parseFloat(onDutyBeforeValue);
+                    const dailyTankBefore = parseFloat(dailyTankBeforeValue);
+                    
+                    if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
+                        const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
+                        form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldDirty: true, shouldValidate: false });
+                    } else {
+                      form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldDirty: true, shouldValidate: false });
+                    }
+                } else {
+                  form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldDirty: true, shouldValidate: false });
+                }
             }
-        } else {
-          form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldDirty: true });
         }
-      }
-  }, [watchedSections, form, logbookSections]);
+    });
+    return () => subscription.unsubscribe();
+  }, [form, logbookSections]);
 
   function onSubmit(values: LogFormData) {
     const newLog: EngineLog = {
@@ -195,7 +199,23 @@ export default function LogbookPage() {
     }
   };
 
-  if (!isClient || logbookSections.length === 0) {
+  if (!isClient || isLoading) {
+    return (
+        <div className="flex flex-col gap-6">
+            <AppHeader />
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-center">New Engine Log Sheet</CardTitle>
+                </CardHeader>
+                <CardContent className="text-center">
+                    <p>Loading Logbook...</p>
+                </CardContent>
+            </Card>
+        </div>
+    )
+  }
+
+  if (logbookSections.length === 0) {
     return (
       <div className="flex flex-col gap-6">
         <AppHeader />
@@ -218,22 +238,6 @@ export default function LogbookPage() {
       </div>
     );
   }
-
-  if (isLoading) {
-    return (
-        <div className="flex flex-col gap-6">
-            <AppHeader />
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-center">New Engine Log Sheet</CardTitle>
-                </CardHeader>
-                <CardContent className="text-center">
-                    <p>Loading Logbook...</p>
-                </CardContent>
-            </Card>
-        </div>
-    )
-  }
   
   const findReadingById = (id: string) => {
     for (const section of logbookSections) {
@@ -250,8 +254,13 @@ export default function LogbookPage() {
     <div className="flex flex-col gap-6">
       <AppHeader />
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-center">New Engine Log Sheet</CardTitle>
+           <Button variant="ghost" size="icon" asChild>
+                <Link href="/settings/logbook">
+                    <Settings className="h-5 w-5" />
+                </Link>
+            </Button>
         </CardHeader>
         <CardContent className="max-w-md mx-auto space-y-4 text-sm">
           <Form {...form}>
@@ -359,7 +368,3 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
-
-    
