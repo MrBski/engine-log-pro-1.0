@@ -1,4 +1,3 @@
-
 // This is a placeholder file. The contents will be filled in by the next step.
 import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
@@ -22,9 +21,5 @@ const app = isConfigValid && getApps().length === 0 ? initializeApp(firebaseConf
 // Conditionally export auth and db
 const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
-
-if (!isConfigValid) {
-    console.error("Firebase configuration is missing or incomplete. Please check your .env.local file.");
-}
 
 export { auth, db };
