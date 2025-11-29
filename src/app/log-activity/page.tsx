@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { useRef, useCallback } from "react";
 import * as htmlToImage from 'html-to-image';
 import { useData } from "@/hooks/use-data";
+import type { Timestamp } from "firebase/firestore";
 
 const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
@@ -32,6 +33,14 @@ const sectionColors: { [key: string]: string } = {
     'Others': 'bg-slate-500',
     'Fuel Consumption': 'bg-orange-600',
 };
+
+const toLocaleString = (timestamp: Timestamp | string | undefined) => {
+    if (!timestamp) return '...';
+    if (typeof timestamp === 'string') {
+        return new Date(timestamp).toLocaleString();
+    }
+    return timestamp.toDate().toLocaleString();
+}
 
 function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSections: LogSection[] }) {
     const { toast } = useToast();
@@ -46,7 +55,6 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
             const dataUrl = await htmlToImage.toPng(printRef.current, {
                 quality: 0.95,
                 backgroundColor: 'hsl(var(--background))',
-                 // Wait for images to load
                 skipAutoScale: false,
                 pixelRatio: 2
             });
@@ -58,10 +66,9 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
                 await navigator.share({
                     files: [file],
                     title: 'Engine Log',
-                    text: `Engine Log Entry for ${new Date(log.timestamp).toLocaleString()}`,
+                    text: `Engine Log Entry for ${toLocaleString(log.timestamp)}`,
                 });
             } else {
-                 // Fallback for browsers that don't support sharing files
                 const link = document.createElement('a');
                 link.download = `engine-log-${log.id}.png`;
                 link.href = dataUrl;
@@ -75,14 +82,14 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
                 description: 'Could not generate or share the log image.'
             });
         }
-    }, [log.id, log.timestamp, toast]);
+    }, [log, toast]);
 
 
     const getReadingsForSection = (title: string) => {
         return log.readings.filter(r => r.key.startsWith(title));
     }
 
-    const sections = logbookSections.map(s => ({
+    const sections = (logbookSections || []).map(s => ({
         ...s,
         readings: getReadingsForSection(s.title)
     })).filter(s => s.readings.length > 0 && s.readings.some(r => r.value));
@@ -120,7 +127,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
             <div className="max-h-[80vh] overflow-y-auto p-1">
                 <div ref={printRef} className="space-y-1 bg-card p-1 rounded-lg text-sm">
                     <div className="font-bold text-center text-sm h-8 flex items-center justify-center bg-muted/50 rounded-md">
-                        {new Date(log.timestamp).toLocaleString()}
+                        {toLocaleString(log.timestamp)}
                     </div>
                     <div className="grid md:grid-cols-2 gap-1">
                         {sections.map(section => (
@@ -155,7 +162,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
                                 <div className="flex items-center border-b border-white/5 py-0.5">
                                     <label className="w-1/2 font-bold text-xs text-foreground">Jam ke-4 (ROB Akhir)</label>
                                     <div className="w-1/2 text-right font-mono text-xs font-bold">{robHour4.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
-                                sem</div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -187,26 +194,19 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
 }
 
 export default function LogActivityPage() {
-    const { activityLog, setActivityLog, logs, setLogs, logbookSections } = useData();
+    const { activityLog = [], deleteLog, logs = [], logbookSections = [] } = useData();
     const { toast } = useToast();
-    const [isMounted, setIsMounted] = useState(false);
 
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
-
-    const handleDeleteLog = (logId: string) => {
-        const logToDelete = logs.find(log => log.id === logId);
-        if (!logToDelete) return;
-    
-        // Also remove associated activity
-        setActivityLog(prev => prev.filter(activity => activity.id !== logId));
-        setLogs(prev => prev.filter(log => log.id !== logId));
-        
-        toast({ title: "Log Deleted", description: "The log entry has been removed." });
+    const handleDeleteLog = async (logId: string) => {
+        try {
+            await deleteLog(logId);
+            toast({ title: "Log Deleted", description: "The log entry has been removed." });
+        } catch (error) {
+            toast({ variant: 'destructive', title: "Error", description: "Failed to delete log." });
+        }
     };
 
-    const sortedActivities = [...activityLog].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const sortedActivities = activityLog; // Already sorted by Firestore query
 
     const categoryMapping: { [key: string]: string } = {
         'main-engine': 'Inventory (ME)',
@@ -249,6 +249,13 @@ export default function LogActivityPage() {
             default: return null;
         }
     }
+    
+    const toShortLocaleString = (timestamp: Timestamp | string | undefined) => {
+      if (!timestamp) return '...';
+      const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp.toDate();
+      return date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'});
+    }
+
 
     return (
         <>
@@ -262,6 +269,7 @@ export default function LogActivityPage() {
             <div className="space-y-2">
                 {sortedActivities.map(activity => {
                     const notes = getNotes(activity);
+                    const logId = activity.type === 'engine' ? activity.id : null;
                     return (
                         <Card key={activity.id} className="flex items-center justify-between p-3">
                             <div className="flex items-center gap-3">
@@ -271,7 +279,7 @@ export default function LogActivityPage() {
                                         {getActivityTitle(activity)}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                        {isMounted ? new Date(activity.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'}) : '...'} - {' '}
+                                        {toShortLocaleString(activity.timestamp)} - {' '}
                                         <span className="font-medium">
                                             {getOfficerText(activity)}
                                         </span>
@@ -283,14 +291,13 @@ export default function LogActivityPage() {
                             </div>
 
                             <div className="flex items-center gap-1">
-                               {activity.type === 'engine' && (
+                               {activity.type === 'engine' && logId && (
                                 <>
                                     <Dialog>
                                         <DialogTrigger asChild>
                                             <Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button>
                                         </DialogTrigger>
-                                        {/* Find the full log from the logs array to pass to the card */}
-                                        <LogEntryCard log={logs.find(l => l.id === activity.id) as EngineLog} logbookSections={logbookSections} />
+                                        <LogEntryCard log={logs.find(l => l.id === logId) as EngineLog} logbookSections={logbookSections as LogSection[]} />
                                     </Dialog>
 
                                     <AlertDialog>
@@ -308,7 +315,7 @@ export default function LogActivityPage() {
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteLog(activity.id)}>Delete</AlertDialogAction>
+                                            <AlertDialogAction onClick={() => handleDeleteLog(logId)}>Delete</AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>

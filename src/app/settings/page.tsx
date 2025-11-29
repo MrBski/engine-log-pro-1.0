@@ -26,24 +26,21 @@ const newOfficerSchema = z.object({
 });
 
 export default function SettingsPage() {
-  const { settings, setSettings } = useData();
+  const { settings, updateSettings } = useData();
   const { toast } = useToast();
 
   const settingsForm = useForm<z.infer<typeof settingsSchema>>({
     resolver: zodResolver(settingsSchema),
-    values: { 
-      shipName: settings.shipName,
-      runningHours: settings.runningHours || 0,
-      generatorRunningHours: settings.generatorRunningHours || 0,
-    },
   });
   
   useEffect(() => {
-    settingsForm.reset({
-      shipName: settings.shipName,
-      runningHours: settings.runningHours || 0,
-      generatorRunningHours: settings.generatorRunningHours || 0,
-    });
+    if(settings) {
+        settingsForm.reset({
+            shipName: settings.shipName,
+            runningHours: settings.runningHours || 0,
+            generatorRunningHours: settings.generatorRunningHours || 0,
+        });
+    }
   }, [settings, settingsForm]);
 
 
@@ -52,28 +49,46 @@ export default function SettingsPage() {
     defaultValues: { name: '' },
   });
 
-  const handleUpdateSettings = (values: z.infer<typeof settingsSchema>) => {
-    setSettings(prev => ({ 
-      ...prev, 
-      shipName: values.shipName,
-      runningHours: values.runningHours,
-      generatorRunningHours: values.generatorRunningHours,
-    }));
-    toast({ title: 'Success', description: 'Settings updated.' });
+  const handleUpdateSettings = async (values: z.infer<typeof settingsSchema>) => {
+    try {
+      await updateSettings(values);
+      toast({ title: 'Success', description: 'Settings updated.' });
+    } catch(e) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update settings.' });
+    }
   };
 
-  const handleAddOfficer = (values: z.infer<typeof newOfficerSchema>) => {
+  const handleAddOfficer = async (values: z.infer<typeof newOfficerSchema>) => {
+    if (!settings) return;
     if (settings.officers.includes(values.name)) {
       newOfficerForm.setError('name', { message: 'Officer already exists.' });
       return;
     }
-    setSettings(prev => ({ ...prev, officers: [...prev.officers, values.name] }));
-    newOfficerForm.reset();
+    try {
+        await updateSettings({ officers: [...settings.officers, values.name] });
+        newOfficerForm.reset();
+    } catch(e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to add officer.' });
+    }
   };
 
-  const handleRemoveOfficer = (officerToRemove: string) => {
-    setSettings(prev => ({ ...prev, officers: prev.officers.filter(o => o !== officerToRemove) }));
+  const handleRemoveOfficer = async (officerToRemove: string) => {
+    if (!settings) return;
+    try {
+        await updateSettings({ officers: settings.officers.filter(o => o !== officerToRemove) });
+    } catch(e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove officer.' });
+    }
   };
+
+  if (!settings) {
+      return (
+          <>
+          <AppHeader />
+          <div className="text-center">Loading settings...</div>
+          </>
+      )
+  }
 
   return (
     <div className="flex flex-col gap-6">

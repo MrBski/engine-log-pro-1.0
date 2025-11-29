@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import BottomNav from '@/components/bottom-nav';
 import LoginPage from '@/app/login/page';
 import { useEffect, useState } from 'react';
+import { Icons } from './icons';
 
 // Pages that don't require authentication
 const PUBLIC_PATHS = ['/login'];
@@ -20,11 +21,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (isLoading || !isClient) {
-    // You can return a loading spinner here
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        {/* Or a more sophisticated skeleton loader */}
-        <p>Loading application...</p>
+      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background text-foreground">
+        <Icons.logo className="h-16 w-16 animate-pulse text-primary" />
+        <p className="text-lg font-semibold">Loading Application...</p>
       </div>
     );
   }
@@ -35,6 +35,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (requiresAuth && !user) {
     return <LoginPage />;
   }
+  
+  if (isPublicPage && user) {
+     // Don't show login page if user is already logged in
+     return (
+        <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background text-foreground">
+            <Icons.logo className="h-16 w-16 animate-pulse text-primary" />
+            <p className="text-lg font-semibold">Redirecting...</p>
+      </div>
+     )
+  }
+
 
   if (isPublicPage) {
     return <>{children}</>;

@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { type EngineLog, type ActivityLog } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { AppHeader } from '@/components/app-header';
 import { format } from 'date-fns';
@@ -51,9 +50,8 @@ const sectionColors: { [key: string]: string } = {
 };
 
 export default function LogbookPage() {
-  const { logs, addLog, activityLog, addActivityLog, settings, setSettings, logbookSections } = useData();
+  const { addLog, addActivityLog, settings, updateSettings, logbookSections = [] } = useData();
   const { toast } = useToast();
-  const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const form = useForm<LogFormData>({
@@ -72,13 +70,6 @@ export default function LogbookPage() {
     name: "sections",
   });
 
-  // Effect for initialization of form
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-
-  // Correctly find indices for specific readings needed for calculation
   const { onDutyBeforeSectionIndex, onDutyBeforeReadingIndex, dailyTankAfterSectionIndex, dailyTankAfterReadingIndex, used4HoursSectionIndex, used4HoursReadingIndex } = useMemo(() => {
     let onDutySIdx, onDutyRIdx, dailySIdx, dailyRIdx, usedSIdx, usedRIdx;
     logbookSections.forEach((section, sectionIdx) => {
@@ -104,28 +95,26 @@ export default function LogbookPage() {
   const onDutyBeforeValue = form.watch(`sections.${onDutyBeforeSectionIndex}.readings.${onDutyBeforeReadingIndex}.value`);
   const dailyTankAfterValue = form.watch(`sections.${dailyTankAfterSectionIndex}.readings.${dailyTankAfterReadingIndex}.value`);
 
-  // Effect for initialization and calculation
   useEffect(() => {
-    if (isClient) {
+    if (logbookSections.length > 0 && settings) {
       const dynamicDefaultValues = {
         timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         sections: logbookSections.map(section => ({
           ...section,
           readings: section.readings.map(r => ({...r, value: ''}))
         })),
-        onDutyEngineer: settings.officers.length > 0 ? settings.officers[0] : '',
+        onDutyEngineer: settings.officers?.length > 0 ? settings.officers[0] : '',
         dutyEngineerPosition: "Chief Engineer",
         condition: ""
       };
       form.reset(dynamicDefaultValues);
       setIsLoading(false);
     }
-  }, [isClient, logbookSections, settings.officers, form]);
+  }, [logbookSections, settings, form]);
 
 
-  // Effect for calculation
   useEffect(() => {
-    if (used4HoursSectionIndex === undefined || used4HoursReadingIndex === undefined || isLoading || !isClient) return;
+    if (used4HoursSectionIndex === undefined || used4HoursReadingIndex === undefined || isLoading) return;
     
     const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
     const dailyTankAfter = parseFloat(dailyTankAfterValue || '0');
@@ -143,13 +132,12 @@ export default function LogbookPage() {
         }
     }
 
-  }, [onDutyBeforeValue, dailyTankAfterValue, form, isLoading, isClient, used4HoursSectionIndex, used4HoursReadingIndex]);
+  }, [onDutyBeforeValue, dailyTankAfterValue, form, isLoading, used4HoursSectionIndex, used4HoursReadingIndex]);
 
 
-  function onSubmit(values: LogFormData) {
-    const newLog: EngineLog = {
-      id: `log-${Date.now()}`,
-      timestamp: new Date(values.timestamp).toISOString(),
+  async function onSubmit(values: LogFormData) {
+    const newLogData = {
+      timestamp: new Date(values.timestamp),
       officer: values.onDutyEngineer,
       readings: values.sections.flatMap(s => 
         s.readings.map(r => ({
@@ -161,36 +149,36 @@ export default function LogbookPage() {
       ),
       notes: values.condition || 'No conditions noted.',
     };
-    addLog(newLog);
 
-    // Update Running Hours
-    setSettings(prevSettings => ({
-      ...prevSettings,
-      runningHours: (prevSettings.runningHours || 0) + 4,
-    }));
+    try {
+        await addLog(newLogData);
+        await addActivityLog({
+            ...newLogData,
+            type: 'engine',
+            name: 'Engine Log Entry', 
+            category: 'main-engine' 
+        });
 
-    const newActivity: ActivityLog = {
-        ...newLog,
-        type: 'engine',
-        name: 'Engine Log Entry', 
-        category: 'main-engine' 
-    };
-    addActivityLog(newActivity);
+        if (settings) {
+            await updateSettings({ runningHours: (settings.runningHours || 0) + 4 });
+        }
 
-    toast({ title: "Success", description: "New engine log has been recorded." });
-    
-    // Reset form with dynamic sections
-    const resetValues = {
-        timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-        sections: logbookSections.map(section => ({
-            ...section,
-            readings: section.readings.map(r => ({...r, value: ''}))
-        })),
-        onDutyEngineer: settings.officers.length > 0 ? settings.officers[0] : '',
-        dutyEngineerPosition: "Chief Engineer",
-        condition: ""
-    };
-    form.reset(resetValues);
+        toast({ title: "Success", description: "New engine log has been recorded." });
+        
+        const resetValues = {
+            timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+            sections: logbookSections.map(section => ({
+                ...section,
+                readings: section.readings.map(r => ({...r, value: ''}))
+            })),
+            onDutyEngineer: settings?.officers?.length > 0 ? settings.officers[0] : '',
+            dutyEngineerPosition: "Chief Engineer",
+            condition: ""
+        };
+        form.reset(resetValues);
+    } catch(error) {
+        toast({ variant: 'destructive', title: "Error", description: "Failed to save log." });
+    }
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -210,7 +198,7 @@ export default function LogbookPage() {
     }
   };
   
-  if (!isClient || isLoading) {
+  if (isLoading) {
     return (
         <div className="flex flex-col gap-6">
             <AppHeader />
@@ -370,7 +358,9 @@ export default function LogbookPage() {
               </div>
               
               <div className="pt-4">
-                <Button type="submit" className="w-full">Save Log</Button>
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? 'Saving...' : 'Save Log'}
+                </Button>
               </div>
             </form>
           </Form>

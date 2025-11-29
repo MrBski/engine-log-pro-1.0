@@ -3,64 +3,77 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-
-// A temporary, hardcoded user list for demonstration.
-// In a real app, this would come from a database.
-const DEMO_USERS = {
-  'basuki': 'sayasekolah',
-};
-type DemoUser = keyof typeof DEMO_USERS;
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useToast } from './use-toast';
 
 interface User {
-  name: DemoUser;
+  uid: string;
+  email: string | null;
+  name: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (username: string, password: string) => void;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Hardcoded user profiles
+const DEMO_USERS: { [key: string]: { name: string } } = {
+  'basuki@example.com': { name: 'Basuki' },
+  'chief@example.com': { name: 'Chief Engineer' },
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Check for a logged-in user in local storage on initial load
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const profile = firebaseUser.email ? DEMO_USERS[firebaseUser.email] : undefined;
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          name: profile?.name || 'User',
+        });
+      } else {
+        setUser(null);
       }
-    } catch (error) {
-      console.error('Failed to parse user from local storage', error);
-      localStorage.removeItem('user');
-    } finally {
       setIsLoading(false);
-    }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const login = (username: string, password: string) => {
-    const validUser = Object.keys(DEMO_USERS).find(u => u.toLowerCase() === username.toLowerCase()) as DemoUser | undefined;
-    
-    if (validUser && DEMO_USERS[validUser] === password) {
-      const userData: User = { name: validUser };
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
+  const login = async (email: string, password: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       router.push('/');
-    } else {
-      throw new Error('Invalid username or password.');
+    } catch (error: any) {
+      console.error("Firebase login error:", error);
+      throw new Error('Invalid email or password.');
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('user');
-    setUser(null);
-    router.push('/login');
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+       toast({
+        variant: 'destructive',
+        title: 'Logout Failed',
+        description: 'Could not log you out. Please try again.',
+      });
+    }
   };
 
   return (

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Icons } from "@/components/icons";
-import { type InventoryItem, type EngineLog, type AppSettings, type ActivityLog } from "@/lib/data";
+import { type EngineLog } from "@/lib/data";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
 import { AppHeader } from "@/components/app-header";
@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
+import type { Timestamp } from "firebase/firestore";
 
 function formatDuration(seconds: number) {
     const h = Math.floor(seconds / 3600);
@@ -24,86 +25,84 @@ function formatDuration(seconds: number) {
 }
 
 export default function DashboardPage() {
-  const { inventory, logs, settings, setSettings, activityLog, addActivityLog } = useData();
+  const { inventory = [], logs = [], settings, updateSettings, addActivityLog, loading } = useData();
   const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
-
-  const [currentGeneratorRHS, setCurrentGeneratorRHS] = useState(settings.generatorRunningHours || 0);
-
   useEffect(() => {
     setMounted(true);
-    let interval: NodeJS.Timeout;
-    if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
-      interval = setInterval(() => {
-        const elapsedSeconds = (Date.now() - (settings.generatorStartTime ?? 0)) / 1000;
-        setCurrentGeneratorRHS((settings.generatorRunningHours || 0) + elapsedSeconds / 3600);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [settings.generatorStatus, settings.generatorStartTime, settings.generatorRunningHours]);
+  }, []);
 
-  useEffect(() => {
-    // This effect ensures the display is updated if settings change from another tab
-    setCurrentGeneratorRHS(settings.generatorRunningHours || 0);
-  }, [settings.generatorRunningHours]);
-
-  const addGeneratorActivity = (notes: string) => {
-    const newActivity: ActivityLog = {
-      id: `activity-${Date.now()}`,
-      type: 'generator',
-      timestamp: new Date().toISOString(),
-      notes,
-      officer: user?.name || 'System',
-    };
-    addActivityLog(newActivity);
-  };
-
-
-  const handleGeneratorToggle = () => {
+  const handleGeneratorToggle = async () => {
+    if (!settings) return;
     if (settings.generatorStatus === 'on') {
       // Turning OFF
       const endTime = Date.now();
       const startTime = settings.generatorStartTime || endTime;
       const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
-      setSettings(prev => {
-          const newTotal = (prev.generatorRunningHours || 0) + elapsedHours;
-          return {
-              ...prev,
-              generatorStatus: 'off',
-              generatorStartTime: null,
-              generatorRunningHours: newTotal,
-          }
-      });
-      addGeneratorActivity('Generator turned OFF');
-      toast({ title: "Generator Off", description: "Running hours have been updated." });
+      try {
+        await updateSettings({
+            generatorStatus: 'off',
+            generatorStartTime: null,
+            generatorRunningHours: (settings.generatorRunningHours || 0) + elapsedHours,
+        });
+        await addActivityLog({
+            type: 'generator',
+            timestamp: new Date(),
+            notes: 'Generator turned OFF',
+            officer: user?.name || 'System',
+        });
+        toast({ title: "Generator Off", description: "Running hours have been updated." });
+      } catch (error) {
+         toast({ variant: "destructive", title: "Error", description: "Failed to turn off generator." });
+      }
     } else {
       // Turning ON
-      setSettings(prev => ({
-        ...prev,
-        generatorStatus: 'on',
-        generatorStartTime: Date.now(),
-      }));
-      addGeneratorActivity('Generator turned ON');
-      toast({ title: "Generator On", description: "Running hours tracking started." });
+      try {
+        await updateSettings({
+            generatorStatus: 'on',
+            generatorStartTime: Date.now(),
+        });
+        await addActivityLog({
+            type: 'generator',
+            timestamp: new Date(),
+            notes: 'Generator turned ON',
+            officer: user?.name || 'System',
+        });
+        toast({ title: "Generator On", description: "Running hours tracking started." });
+      } catch (error) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to turn on generator." });
+      }
     }
   };
 
-  const handleGeneratorReset = () => {
-     setSettings(prev => ({
-        ...prev,
-        generatorRunningHours: 0,
-        generatorStartTime: prev.generatorStatus === 'on' ? Date.now() : null,
-      }));
-      setCurrentGeneratorRHS(0);
-      addGeneratorActivity('Generator RHS Reset');
-      toast({ title: "Generator RHS Reset", description: "Running hours have been reset to 0." });
+  const handleGeneratorReset = async () => {
+     if (!settings) return;
+     try {
+        await updateSettings({
+            generatorRunningHours: 0,
+            generatorStartTime: settings.generatorStatus === 'on' ? Date.now() : null,
+        });
+        await addActivityLog({
+            type: 'generator',
+            timestamp: new Date(),
+            notes: 'Generator RHS Reset',
+            officer: user?.name || 'System',
+        });
+        toast({ title: "Generator RHS Reset", description: "Running hours have been reset to 0." });
+     } catch (error) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to reset generator RHS." });
+     }
   };
 
+  const toDate = (timestamp: Timestamp | string) => {
+    if (typeof timestamp === 'string') return new Date(timestamp);
+    return timestamp.toDate();
+  }
 
   const lowStockItems = inventory.filter(item => item.stock <= item.lowStockThreshold);
-  const latestLog = logs.length > 0 ? logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0] : null;
+  const latestLog = logs.length > 0 ? logs[0] : null; // Already sorted by Firestore query
   const recentLogs = logs.slice(0, 5);
 
   const getReading = (log: EngineLog, key: string) => {
@@ -112,32 +111,18 @@ export default function DashboardPage() {
   }
 
   const chartData = logs.slice(0, 7).reverse().map(log => ({
-    date: new Date(log.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    date: toDate(log.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     rpm: parseFloat(log.readings.find(r => r.key.includes('RPM'))?.value || '0'),
     fuel: parseFloat(log.readings.find(r => r.key.includes('Fuel'))?.value || '0'),
   }));
 
   const chartConfig = {
-    rpm: {
-      label: "RPM",
-      color: "hsl(var(--chart-1))",
-    },
-    fuel: {
-        label: "Fuel (L/hr)",
-        color: "hsl(var(--chart-2))",
-    }
+    rpm: { label: "RPM", color: "hsl(var(--chart-1))" },
+    fuel: { label: "Fuel (L/hr)", color: "hsl(var(--chart-2))" }
   };
 
-  if (!mounted) {
-    return (
-      <>
-        <AppHeader />
-        {/* You can add skeleton loaders here */}
-      </>
-    );
-  }
-
   const getTotalElapsedSeconds = () => {
+    if (!settings) return 0;
     if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
       const elapsed = (Date.now() - settings.generatorStartTime) / 1000;
       return (settings.generatorRunningHours || 0) * 3600 + elapsed;
@@ -145,10 +130,18 @@ export default function DashboardPage() {
     return (settings.generatorRunningHours || 0) * 3600;
   };
 
+  if (!mounted || loading || !settings) {
+    return (
+      <>
+        <AppHeader />
+        <div className="text-center">Loading dashboard data...</div>
+      </>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <AppHeader />
-      {/* Stat Cards */}
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         <Card className="flex flex-col p-4 justify-between">
           <div className="flex items-center">
@@ -207,9 +200,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Main Content Area */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Recent Logs Table */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Recent Logs</CardTitle>
@@ -228,7 +219,7 @@ export default function DashboardPage() {
               <TableBody>
                 {recentLogs.map(log => (
                   <TableRow key={log.id}>
-                    <TableCell>{new Date(log.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'})}</TableCell>
+                    <TableCell>{toDate(log.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'})}</TableCell>
                     <TableCell>{log.officer}</TableCell>
                     <TableCell>{getReading(log, 'RPM')}</TableCell>
                     <TableCell>{getReading(log, 'Fuel')}</TableCell>
@@ -240,7 +231,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Performance Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Performance Overview</CardTitle>

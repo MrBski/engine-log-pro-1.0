@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { type InventoryItem, type InventoryCategory, type ActivityLog } from '@/lib/data';
+import { type InventoryItem, type InventoryCategory } from '@/lib/data';
 import {
   Dialog,
   DialogContent,
@@ -43,7 +43,7 @@ const useItemSchema = z.object({
 });
 
 export default function InventoryPage() {
-  const { inventory, setInventory, addActivityLog } = useData();
+  const { inventory = [], addInventoryItem, updateInventoryItem, addActivityLog } = useData();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -58,26 +58,25 @@ export default function InventoryPage() {
     defaultValues: { itemId: "", amount: 1 },
   });
 
-  const handleAddItem = (values: z.infer<typeof itemSchema>) => {
-    const newItem: InventoryItem = { id: `item-${Date.now()}`, ...values };
-    setInventory(prev => [...prev, newItem]);
-    
-    const newActivity: ActivityLog = {
-      id: `activity-${Date.now()}`,
-      type: 'inventory',
-      timestamp: new Date().toISOString(),
-      name: newItem.name,
-      notes: `Added ${newItem.stock} ${newItem.unit} to stock.`,
-      category: newItem.category,
-    };
-    addActivityLog(newActivity);
-
-    toast({ title: "Success", description: `${newItem.name} added to inventory.` });
-    addForm.reset();
-    setIsAddDialogOpen(false);
+  const handleAddItem = async (values: z.infer<typeof itemSchema>) => {
+    try {
+      await addInventoryItem(values);
+      await addActivityLog({
+        type: 'inventory',
+        timestamp: new Date(),
+        name: values.name,
+        notes: `Added ${values.stock} ${values.unit} to stock.`,
+        category: values.category,
+      });
+      toast({ title: "Success", description: `${values.name} added to inventory.` });
+      addForm.reset();
+      setIsAddDialogOpen(false);
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to add item.' });
+    }
   };
 
-  const handleUseItem = (values: z.infer<typeof useItemSchema>) => {
+  const handleUseItem = async (values: z.infer<typeof useItemSchema>) => {
     const itemToUse = inventory.find(item => item.id === values.itemId);
     if (!itemToUse) {
       useFormInstance.setError("itemId", { type: "manual", message: "Item not found." });
@@ -87,21 +86,22 @@ export default function InventoryPage() {
         useFormInstance.setError("amount", { type: "manual", message: "Not enough stock." });
         return;
     }
-    setInventory(prev => prev.map(item => item.id === itemToUse.id ? { ...item, stock: item.stock - values.amount } : item));
     
-    const newActivity: ActivityLog = {
-      id: `activity-${Date.now()}`,
-      type: 'inventory',
-      timestamp: new Date().toISOString(),
-      name: itemToUse.name,
-      notes: `Used ${values.amount} ${itemToUse.unit}.`,
-      category: itemToUse.category,
-    };
-    addActivityLog(newActivity);
-    
-    toast({ title: "Success", description: `${values.amount} ${itemToUse.unit} of ${itemToUse.name} used.` });
-    useFormInstance.reset();
-    setIsUseDialogOpen(false);
+    try {
+      await updateInventoryItem(itemToUse.id, { stock: itemToUse.stock - values.amount });
+      await addActivityLog({
+        type: 'inventory',
+        timestamp: new Date(),
+        name: itemToUse.name,
+        notes: `Used ${values.amount} ${itemToUse.unit}.`,
+        category: itemToUse.category,
+      });
+      toast({ title: "Success", description: `${values.amount} ${itemToUse.unit} of ${itemToUse.name} used.` });
+      useFormInstance.reset();
+      setIsUseDialogOpen(false);
+    } catch (error) {
+       toast({ variant: 'destructive', title: 'Error', description: 'Failed to update item stock.' });
+    }
   };
 
   const categories: InventoryCategory[] = ['main-engine', 'generator', 'other'];

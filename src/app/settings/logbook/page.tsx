@@ -35,7 +35,7 @@ const sectionSchema = z.object({
 });
 
 export default function LogbookSettingsPage() {
-  const { logbookSections, setLogbookSections } = useData();
+  const { logbookSections = [], updateLogbookSections } = useData();
   const { toast } = useToast();
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
 
@@ -43,48 +43,70 @@ export default function LogbookSettingsPage() {
   const readingForm = useForm<z.infer<typeof readingSchema>>({ resolver: zodResolver(readingSchema) });
   const sectionTitleForm = useForm<z.infer<typeof sectionSchema>>({ resolver: zodResolver(sectionSchema) });
   
-  const handleAddSection = (values: z.infer<typeof sectionSchema>) => {
+  const handleAddSection = async (values: z.infer<typeof sectionSchema>) => {
     const newSection: LogSection = {
       id: `section-${Date.now()}`,
       title: values.title,
       readings: [],
     };
-    setLogbookSections(prev => [...prev, newSection]);
-    sectionForm.reset({ title: '' });
-    toast({ title: 'Section Added', description: `"${values.title}" has been added.` });
+    try {
+        await updateLogbookSections([...logbookSections, newSection]);
+        sectionForm.reset({ title: '' });
+        toast({ title: 'Section Added', description: `"${values.title}" has been added.` });
+    } catch(e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to add section.' });
+    }
   };
 
-  const handleRemoveSection = (sectionId: string) => {
-    setLogbookSections(prev => prev.filter(s => s.id !== sectionId));
-    toast({ title: 'Section Removed' });
+  const handleRemoveSection = async (sectionId: string) => {
+    try {
+        await updateLogbookSections(logbookSections.filter(s => s.id !== sectionId));
+        toast({ title: 'Section Removed' });
+    } catch(e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove section.' });
+    }
   };
   
-  const handleEditSectionTitle = (sectionId: string, newTitle: string) => {
-    setLogbookSections(prev => prev.map(s => s.id === sectionId ? { ...s, title: newTitle } : s));
-    setEditingSectionId(null);
-    toast({ title: 'Section Updated' });
+  const handleEditSectionTitle = async (sectionId: string, newTitle: string) => {
+    try {
+        await updateLogbookSections(logbookSections.map(s => s.id === sectionId ? { ...s, title: newTitle } : s));
+        setEditingSectionId(null);
+        toast({ title: 'Section Updated' });
+    } catch(e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to update section.' });
+    }
   };
 
 
-  const handleAddReading = (sectionId: string, values: z.infer<typeof readingSchema>) => {
+  const handleAddReading = async (sectionId: string, values: z.infer<typeof readingSchema>) => {
     const newReading: Reading = {
       id: `reading-${Date.now()}`,
       key: values.key,
       unit: values.unit,
     };
-    setLogbookSections(prev => prev.map(s => s.id === sectionId ? { ...s, readings: [...s.readings, newReading] } : s));
-    readingForm.reset({ key: '', unit: '' });
-    toast({ title: 'Reading Added', description: `"${values.key}" has been added.` });
+    try {
+        const newSections = logbookSections.map(s => s.id === sectionId ? { ...s, readings: [...s.readings, newReading] } : s);
+        await updateLogbookSections(newSections);
+        readingForm.reset({ key: '', unit: '' });
+        toast({ title: 'Reading Added', description: `"${values.key}" has been added.` });
+    } catch(e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to add reading.' });
+    }
   };
 
-  const handleRemoveReading = (sectionId: string, readingId: string) => {
-    setLogbookSections(prev => prev.map(s => {
-      if (s.id === sectionId) {
-        return { ...s, readings: s.readings.filter(r => r.id !== readingId) };
-      }
-      return s;
-    }));
-    toast({ title: 'Reading Removed' });
+  const handleRemoveReading = async (sectionId: string, readingId: string) => {
+    try {
+        const newSections = logbookSections.map(s => {
+            if (s.id === sectionId) {
+                return { ...s, readings: s.readings.filter(r => r.id !== readingId) };
+            }
+            return s;
+        });
+        await updateLogbookSections(newSections);
+        toast({ title: 'Reading Removed' });
+    } catch (e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove reading.' });
+    }
   };
 
 

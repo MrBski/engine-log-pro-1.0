@@ -27,7 +27,7 @@ import { Icons } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
 
 const loginSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
+  email: z.string().email('Invalid email address.'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -37,12 +37,12 @@ export default function LoginPage() {
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { username: '', password: '' },
+    defaultValues: { email: '', password: '' },
   });
 
-  const onSubmit = (values: z.infer<typeof loginSchema>) => {
+  const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     try {
-      login(values.username, values.password);
+      await login(values.email, values.password);
       toast({ title: 'Login Successful', description: 'Welcome back!' });
     } catch (error: any) {
       toast({
@@ -69,12 +69,12 @@ export default function LoginPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="username"
+                name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Username</FormLabel>
+                    <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Chief Engineer" {...field} />
+                      <Input placeholder="e.g. chief@example.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -93,15 +93,15 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full">
-                Login
+              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? 'Logging in...' : 'Login'}
               </Button>
             </form>
           </Form>
         </CardContent>
         <CardFooter>
             <p className='text-xs text-muted-foreground text-center w-full'>
-                This is a private application. Contact administrator for access.
+                Access is restricted. Contact your administrator to create an account.
             </p>
         </CardFooter>
       </Card>
