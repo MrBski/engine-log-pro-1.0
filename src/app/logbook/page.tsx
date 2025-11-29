@@ -152,6 +152,7 @@ export default function LogbookPage() {
       const nextElement = focusable[index + 1];
       if (nextElement && nextElement instanceof HTMLElement) {
           nextElement.focus();
+          nextElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
   };
