@@ -280,10 +280,10 @@ export default function LogActivityPage() {
             </div>
 
             <div className="space-y-2">
-                {sortedActivities.map(activity => {
+                {(sortedActivities || []).map(activity => {
                     const notes = getNotes(activity);
                     const logId = activity.type === 'engine' ? activity.logId : null;
-                    const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
+                    const associatedLog = logId ? (logs || []).find(l => l.id === logId) : undefined;
                     
                     return (
                         <Card key={activity.id} className="flex items-center justify-between p-3">
@@ -306,7 +306,7 @@ export default function LogActivityPage() {
                             </div>
 
                             <div className="flex items-center gap-1">
-                               {activity.type === 'engine' && logId && (
+                               {activity.type === 'engine' && logId && associatedLog && (
                                 <>
                                     <Dialog>
                                         <DialogTrigger asChild>
@@ -345,5 +345,3 @@ export default function LogActivityPage() {
         </>
     )
 }
-
-    

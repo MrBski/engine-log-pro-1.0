@@ -56,7 +56,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const activityCol = isFirebaseReady && user ? collection(db, 'activity') : null;
 
     // --- Hooks ---
-    // Pass the ref (which can be null) to the hooks. They will only fetch when the ref is not null.
     const [settings, loadingSettings, errorSettings] = useDocumentData(settingsRef);
     const [logbookData, loadingLogbook, errorLogbook] = useDocumentData(logbookRef);
     const logsQuery = logsCol ? query(logsCol, orderBy('timestamp', 'desc')) : null;
@@ -68,7 +67,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     // This effect initializes the database with default data if it's empty
     useEffect(() => {
-        // Only run this if we have a user and all initial loading states are false
         if (db && user && !loadingSettings && settings === undefined && !loadingLogbook && logbookData === undefined) {
              const initializeData = async () => {
                 const initial = getInitialData();
@@ -91,11 +89,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 }
             };
             
-            // Check after a short delay to allow hooks to get the initial data
             const timer = setTimeout(initializeData, 1500);
             return () => clearTimeout(timer);
         }
-    }, [db, user, loadingSettings, settings, loadingLogbook, logbookData, settingsRef, logbookRef]);
+    }, [user, loadingSettings, settings, loadingLogbook, logbookData, settingsRef, logbookRef]);
 
 
     // --- Functions ---
@@ -130,8 +127,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await setDoc(doc(db, 'inventory', itemId), updates, { merge: true });
     };
 
-
-
     const addActivityLog = async (activity: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         if (!activityCol) return;
         const newActivity = {
@@ -147,11 +142,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
 
     if (!isFirebaseReady) {
-        // Don't render anything until we know if Firebase is available
         return null;
     }
     
-    // If user is logged out, we don't need to check for data errors.
     const anyError = user && (errorSettings || errorLogs || errorInv || errorActivity || errorLogbook);
     if (anyError) {
         if(errorSettings) console.error("Firestore settings error:", errorSettings);
@@ -169,28 +162,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         );
     }
     
-    // Overall loading is true if auth is loading, OR if the user is logged in and data is loading.
     const loading = isAuthLoading || (!!user && (loadingSettings || loadingLogs || loadingInv || loadingActivity || loadingLogbook));
     
-    // Use initial data ONLY when not logged in.
-    // Once logged in, the hooks' own state (even if 'undefined' during load) is the source of truth.
     const initialData = getInitialData();
     const data: DataContextType = {
-        settings: user ? settings : initialData.settings,
+        settings: !user ? initialData.settings : settings,
         updateSettings,
-        logs: user ? (logs as EngineLog[]) : initialData.logs,
+        logs: !user ? initialData.logs : (logs as EngineLog[]),
         addLog,
         deleteLog,
-        inventory: user ? (inventory as InventoryItem[]) : initialData.inventory,
+        inventory: !user ? initialData.inventory : (inventory as InventoryItem[]),
         addInventoryItem,
         updateInventoryItem,
-        activityLog: user ? (activityLog as ActivityLog[]) : initialData.activityLog,
+        activityLog: !user ? initialData.activityLog : (activityLog as ActivityLog[]),
         addActivityLog,
-        logbookSections: user ? logbookData?.sections : initialData.logbookSections,
+        logbookSections: !user ? initialData.logbookSections : logbookData?.sections,
         updateLogbookSections,
         loading,
     }
-
 
     return (
         <DataContext.Provider value={data}>
@@ -198,7 +187,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         </DataContext.Provider>
     );
 };
-
 
 export const useData = () => {
   const context = useContext(DataContext);
