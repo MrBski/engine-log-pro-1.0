@@ -65,15 +65,25 @@ export default function LogbookPage() {
 
   const form = useForm<LogFormData>({
     resolver: zodResolver(logSchema),
+    defaultValues: {
+      timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      sections: [],
+      onDutyEngineer: '',
+      dutyEngineerPosition: "Chief Engineer",
+      condition: ""
+    }
   });
-  
+
   const { fields: sectionFields } = useFieldArray({
     control: form.control,
     name: "sections",
   });
+  
+  const watchedSections = form.watch('sections');
 
   useEffect(() => {
     if (isClient) {
+      // Set initial form values
       const dynamicDefaultValues = {
         timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         sections: logbookSections.map(section => ({
@@ -86,59 +96,47 @@ export default function LogbookPage() {
       };
       form.reset(dynamicDefaultValues);
       setIsLoading(false);
-    }
-  }, [isClient, logbookSections, settings.officers, form]);
-  
-  const watchedSections = form.watch('sections');
 
-  useEffect(() => {
-    if (!watchedSections || watchedSections.length === 0) return;
+      // Start watching for changes to calculate values
+      const subscription = form.watch((value, { name, type }) => {
+        const sections = value.sections || [];
+        
+        let onDutyBeforeValueStr: string | undefined;
+        let dailyTankBeforeValueStr: string | undefined;
+        let used4HoursSectionIndex: number | undefined;
+        let used4HoursReadingIndex: number | undefined;
 
-    let onDutyBeforeValue: string | undefined;
-    let dailyTankBeforeValue: string | undefined;
-    let used4HoursSectionIndex: number | undefined;
-    let used4HoursReadingIndex: number | undefined;
-    let onDutyBeforeSectionIndex: number | undefined;
-    let onDutyBeforeReadingIndex: number | undefined;
-    let dailyTankBeforeSectionIndex: number | undefined;
-    let dailyTankBeforeReadingIndex: number | undefined;
-    
-    watchedSections.forEach((section, sIdx) => {
-        section.readings.forEach((reading, rIdx) => {
-            if (reading.id === 'other_used') {
-                used4HoursSectionIndex = sIdx;
-                used4HoursReadingIndex = rIdx;
-            }
+        sections.forEach((section, sIdx) => {
+          section?.readings?.forEach((reading, rIdx) => {
             if (reading.id === 'onduty_before') {
-                onDutyBeforeSectionIndex = sIdx;
-                onDutyBeforeReadingIndex = rIdx;
+              onDutyBeforeValueStr = reading.value;
             }
             if (reading.id === 'daily_before') {
-                dailyTankBeforeSectionIndex = sIdx;
-                dailyTankBeforeReadingIndex = rIdx;
+              dailyTankBeforeValueStr = reading.value;
             }
+            if (reading.id === 'other_used') {
+              used4HoursSectionIndex = sIdx;
+              used4HoursReadingIndex = rIdx;
+            }
+          });
         });
-    });
+        
+        if (used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
+          const onDutyBefore = parseFloat(onDutyBeforeValueStr || '');
+          const dailyTankBefore = parseFloat(dailyTankBeforeValueStr || '');
 
-    if (onDutyBeforeSectionIndex !== undefined && onDutyBeforeReadingIndex !== undefined) {
-      onDutyBeforeValue = watchedSections[onDutyBeforeSectionIndex]?.readings[onDutyBeforeReadingIndex]?.value;
+          if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
+            const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
+            form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: false });
+          } else {
+            form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
+          }
+        }
+      });
+      
+      return () => subscription.unsubscribe();
     }
-    if (dailyTankBeforeSectionIndex !== undefined && dailyTankBeforeReadingIndex !== undefined) {
-      dailyTankBeforeValue = watchedSections[dailyTankBeforeSectionIndex]?.readings[dailyTankBeforeReadingIndex]?.value;
-    }
-
-    if (used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
-      const onDutyBefore = parseFloat(onDutyBeforeValue!);
-      const dailyTankBefore = parseFloat(dailyTankBeforeValue!);
-
-      if (onDutyBeforeValue != null && dailyTankBeforeValue != null && onDutyBeforeValue !== '' && dailyTankBeforeValue !== '' && !isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
-          const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
-          form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: false });
-      } else {
-          form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
-      }
-    }
-  }, [watchedSections, form]);
+  }, [isClient, logbookSections, settings.officers, form]);
 
 
   function onSubmit(values: LogFormData) {
@@ -198,7 +196,7 @@ export default function LogbookPage() {
       }
     }
   };
-
+  
   if (!isClient || isLoading) {
     return (
         <div className="flex flex-col gap-6">
@@ -368,3 +366,5 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
