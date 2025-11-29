@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { KeyboardEvent } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -138,6 +139,22 @@ export default function LogbookPage() {
         condition: ""
     });
   }
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
+      e.preventDefault();
+      const form = e.currentTarget.form;
+      if (!form) return;
+
+      const focusable = Array.from(form.querySelectorAll('input, textarea, button, select'));
+      const index = focusable.indexOf(e.currentTarget);
+      
+      const nextElement = focusable[index + 1];
+      if (nextElement && nextElement instanceof HTMLElement) {
+          nextElement.focus();
+      }
+    }
+  };
   
 
   return (
@@ -159,7 +176,8 @@ export default function LogbookPage() {
                       <Input 
                         type="datetime-local" 
                         className="h-12 text-lg font-bold text-center" 
-                        {...field} 
+                        {...field}
+                        onKeyDown={handleKeyDown}
                       />
                     </FormControl>
                   </FormItem>
@@ -185,6 +203,7 @@ export default function LogbookPage() {
                               inputMode="decimal"
                               className="h-8 bg-card-foreground/5 text-right text-sm"
                               {...field}
+                              onKeyDown={handleKeyDown}
                             />
                           </FormControl>
                         </FormItem>
@@ -202,7 +221,7 @@ export default function LogbookPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold" placeholder="Engineer Name" {...field} />
+                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold" placeholder="Engineer Name" {...field} onKeyDown={handleKeyDown} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -213,7 +232,7 @@ export default function LogbookPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold" placeholder="Position" {...field} />
+                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold" placeholder="Position" {...field} onKeyDown={handleKeyDown} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -228,7 +247,7 @@ export default function LogbookPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Textarea className="font-bold text-center" placeholder="Any observations..." {...field} />
+                        <Textarea className="font-bold text-center" placeholder="Any observations..." {...field} onKeyDown={handleKeyDown} />
                       </FormControl>
                     </FormItem>
                   )}
