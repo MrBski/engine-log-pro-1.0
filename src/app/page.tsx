@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -12,9 +13,16 @@ import { ChartTooltipContent } from "@/components/ui/chart";
 export default function DashboardPage() {
   const [inventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
   const [logs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
+  const [formattedTimestamp, setFormattedTimestamp] = useState<string | null>(null);
 
   const lowStockItems = inventory.filter(item => item.stock <= item.lowStockThreshold);
   const latestLog = logs.length > 0 ? logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0] : null;
+
+  useEffect(() => {
+    if (latestLog) {
+      setFormattedTimestamp(new Date(latestLog.timestamp).toLocaleString());
+    }
+  }, [latestLog]);
 
   const chartData = inventory.slice(0, 5).map(item => ({
     name: item.name,
@@ -34,7 +42,7 @@ export default function DashboardPage() {
             <div>
               <div className="text-2xl font-bold">{latestLog.officer}'s Watch</div>
               <p className="text-xs text-muted-foreground">
-                {new Date(latestLog.timestamp).toLocaleString()}
+                {formattedTimestamp || 'Loading date...'}
               </p>
               <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {latestLog.readings.map(reading => (
