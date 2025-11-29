@@ -40,7 +40,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
-    const { user } = useAuth();
+    const { user, isLoading: isAuthLoading } = useAuth();
     const [isFirebaseReady, setIsFirebaseReady] = useState(false);
 
     useEffect(() => {
@@ -48,33 +48,37 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     // --- References ---
-    const settingsRef = isFirebaseReady ? doc(db, 'app-data', 'settings') : null;
-    const logbookRef = isFirebaseReady ? doc(db, 'app-data', 'logbookSections') : null;
-    const logsCol = isFirebaseReady ? collection(db, 'logs') : null;
-    const invCol = isFirebaseReady ? collection(db, 'inventory') : null;
-    const activityCol = isFirebaseReady ? collection(db, 'activity') : null;
+    // Defer creating refs until firebase is ready AND user is logged in
+    const settingsRef = isFirebaseReady && user ? doc(db, 'app-data', 'settings') : null;
+    const logbookRef = isFirebaseReady && user ? doc(db, 'app-data', 'logbookSections') : null;
+    const logsCol = isFirebaseReady && user ? collection(db, 'logs') : null;
+    const invCol = isFirebaseReady && user ? collection(db, 'inventory') : null;
+    const activityCol = isFirebaseReady && user ? collection(db, 'activity') : null;
 
     // --- Hooks ---
+    // Pass the ref (which can be null) to the hooks. They will only fetch when the ref is not null.
     const [settings, loadingSettings, errorSettings] = useDocumentData(settingsRef);
     const [logbookData, loadingLogbook, errorLogbook] = useDocumentData(logbookRef);
     const logsQuery = logsCol ? query(logsCol, orderBy('timestamp', 'desc')) : null;
     const [logs, loadingLogs, errorLogs] = useCollectionData(logsQuery, { idField: 'id' });
-    const [inventory, loadingInv, errorInv] = useCollectionData(invCol, { idField: 'id' });
+    const invQuery = invCol ? query(invCol, orderBy('name')) : null;
+    const [inventory, loadingInv, errorInv] = useCollectionData(invQuery, { idField: 'id' });
     const activityQuery = activityCol ? query(activityCol, orderBy('timestamp', 'desc')) : null;
     const [activityLog, loadingActivity, errorActivity] = useCollectionData(activityQuery, { idField: 'id' });
 
     // This effect initializes the database with default data if it's empty
     useEffect(() => {
-        if (db && !loadingSettings && !loadingLogbook && user) {
+        // Only run this if we have a user and all initial loading states are false
+        if (db && user && !loadingSettings && !loadingLogbook) {
             const batch = writeBatch(db);
             let writesMade = false;
 
-            if (!settings && settingsRef) {
+            if (settings === undefined && settingsRef) {
                 console.log("Initializing settings document...");
                 batch.set(settingsRef, getInitialData().settings);
                 writesMade = true;
             }
-            if (!logbookData && logbookRef) {
+            if (logbookData === undefined && logbookRef) {
                 console.log("Initializing logbookSections document...");
                 batch.set(logbookRef, { sections: getInitialData().logbookSections });
                 writesMade = true;
@@ -90,7 +94,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     // --- Functions ---
     const updateSettings = async (newSettings: Partial<AppSettings>) => {
         if (!settingsRef) return;
-        // Use current settings from state as base, or initial data if state is empty
         const baseSettings = settings || getInitialData().settings;
         await setDoc(settingsRef, { ...baseSettings, ...newSettings }, { merge: true });
     };
@@ -105,7 +108,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
     
     const deleteLog = async (logId: string) => {
-        if (!db) return;
+        if (!db || !user) return;
         await deleteDoc(doc(db, 'logs', logId));
     };
 
@@ -115,9 +118,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const updateInventoryItem = async (itemId: string, updates: Partial<InventoryItem>) => {
-        if (!db) return;
+        if (!db || !user) return;
         await setDoc(doc(db, 'inventory', itemId), updates, { merge: true });
     };
+
+
 
     const addActivityLog = async (activity: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         if (!activityCol) return;
@@ -133,12 +138,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await setDoc(logbookRef, { sections });
     };
 
-
     if (!isFirebaseReady) {
+        // Don't render anything until we know if Firebase is available
         return null;
     }
-
-    const anyError = errorSettings || errorLogs || errorInv || errorActivity || errorLogbook;
+    
+    // If user is logged out, we don't need to check for data errors.
+    const anyError = user && (errorSettings || errorLogs || errorInv || errorActivity || errorLogbook);
     if (anyError) {
         if(errorSettings) console.error("Firestore settings error:", errorSettings);
         if(errorLogs) console.error("Firestore logs error:", errorLogs);
@@ -154,22 +160,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             </div>
         );
     }
-
-    const loading = loadingSettings || loadingLogs || loadingInv || loadingActivity || loadingLogbook;
+    
+    // Overall loading is true if auth is loading, OR if the user is logged in and data is loading.
+    const loading = isAuthLoading || (!!user && (loadingSettings || loadingLogs || loadingInv || loadingActivity || loadingLogbook));
     
     const initialData = getInitialData();
+    // Provide initial data if user is not logged in or data is loading
     const data: DataContextType = {
         settings: settings || initialData.settings,
         updateSettings,
-        logs: logs as EngineLog[] | undefined,
+        logs: (logs as EngineLog[] | undefined) || initialData.logs,
         addLog,
         deleteLog,
-        inventory: inventory as InventoryItem[] | undefined,
+        inventory: (inventory as InventoryItem[] | undefined) || initialData.inventory,
         addInventoryItem,
         updateInventoryItem,
-        activityLog: activityLog as ActivityLog[] | undefined,
+        activityLog: (activityLog as ActivityLog[] | undefined) || initialData.activityLog,
         addActivityLog,
-        logbookSections: logbookData?.sections || initialData.logbookSections,
+        logbookSections: (logbookData?.sections as LogSection[] | undefined) || initialData.logbookSections,
         updateLogbookSections,
         loading,
     }
