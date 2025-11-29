@@ -116,23 +116,23 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
             <DialogHeader>
                 <DialogTitle>Engine Log Preview</DialogTitle>
             </DialogHeader>
-            <div className="max-h-[80vh] overflow-y-auto">
-                <div ref={printRef} className="space-y-2 bg-card p-2 rounded-lg text-sm">
-                    <div className="font-bold text-center text-base h-8 flex items-center justify-center bg-muted/50 rounded-md">
+            <div className="max-h-[80vh] overflow-y-auto p-1">
+                <div ref={printRef} className="space-y-1 bg-card p-1 rounded-lg text-sm">
+                    <div className="font-bold text-center text-sm h-8 flex items-center justify-center bg-muted/50 rounded-md">
                         {new Date(log.timestamp).toLocaleString()}
                     </div>
-                    <div className="grid md:grid-cols-2 gap-2">
+                    <div className="grid md:grid-cols-2 gap-1">
                         {sections.map(section => (
-                            <div key={section.title} className="space-y-1 p-1 border border-muted-foreground/50 rounded-sm">
-                                <h3 className={cn("font-bold text-center p-1.5 my-2 rounded-md text-primary-foreground text-xs", sectionColors[section.title] || 'bg-gray-500')}>
+                            <div key={section.title} className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
+                                <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors[section.title] || 'bg-gray-500')}>
                                     {section.title}
                                 </h3>
                                 {section.readings.map(renderReading)}
                             </div>
                         ))}
                          {hasConsumptionData && (
-                            <div className="space-y-1 p-1 border border-muted-foreground/50 rounded-sm">
-                                <h3 className={cn("font-bold text-center p-1.5 my-2 rounded-md text-primary-foreground text-xs", sectionColors['Fuel Consumption'] || 'bg-gray-500')}>
+                            <div className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
+                                <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors['Fuel Consumption'] || 'bg-gray-500')}>
                                     USED / HOUR (-{hourlyConsumption.toFixed(2)} L/hr)
                                 </h3>
                                 <div className="flex items-center border-b border-white/5 py-0.5">
@@ -159,13 +159,13 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
                         )}
                     </div>
                     
-                    <div className="space-y-1 pt-2">
+                    <div className="space-y-1 pt-1">
                          <div className="text-center space-y-0.5">
-                            <div className="h-6 text-center font-semibold flex items-center justify-center rounded-md bg-accent text-accent-foreground">
+                            <div className="h-6 text-center font-semibold flex items-center justify-center rounded-md bg-accent text-accent-foreground text-sm">
                                 {log.officer}
                             </div>
                         </div>
-                        <div className="text-center font-bold p-2 rounded-md bg-muted min-h-[40px] flex items-center justify-center text-sm mt-2">
+                        <div className="text-center font-bold p-2 rounded-md bg-muted min-h-[30px] flex items-center justify-center text-xs mt-1">
                            {log.notes}
                         </div>
                     </div>
@@ -218,27 +218,27 @@ export default function LogActivityPage() {
     return (
         <>
         <AppHeader />
-        <div className="space-y-8">
+        <div className="space-y-4">
             <div className="flex items-center gap-2">
                 <History className="h-6 w-6 text-primary" />
                 <h2 className="text-2xl font-bold text-foreground">Log Activity</h2>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2">
                 {sortedActivities.map(activity => (
-                    <Card key={activity.id} className="flex items-center justify-between p-4">
-                        <div className="flex items-center gap-4">
+                    <Card key={activity.id} className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-3">
                             {activity.type === 'engine' ? (
                                 <FileJson className="h-4 w-4 text-muted-foreground" />
                             ) : (
                                 <Archive className="h-4 w-4 text-muted-foreground" />
                             )}
                             <div>
-                                <p className="font-semibold">
+                                <p className="font-semibold text-sm">
                                     {activity.type === 'engine' ? 'Engine Log Entry' : `"${activity.name}" updated`}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                    {isMounted ? new Date(activity.timestamp).toLocaleString() : '...'} - {' '}
+                                    {isMounted ? new Date(activity.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'}) : '...'} - {' '}
                                     <span className="font-medium">
                                         {activity.type === 'engine' ? `by ${activity.officer}` : categoryMapping[activity.category || 'other']}
                                     </span>
@@ -249,7 +249,7 @@ export default function LogActivityPage() {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                            {activity.type === 'engine' && (
                             <>
                                 <Dialog>
@@ -289,3 +289,5 @@ export default function LogActivityPage() {
         </>
     )
 }
+
+    

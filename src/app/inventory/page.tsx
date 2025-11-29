@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -119,8 +120,8 @@ export default function InventoryPage() {
         <TableBody>
           {items.map(item => (
             <TableRow key={item.id}>
-              <TableCell className="font-medium">{item.name}</TableCell>
-              <TableCell className="text-right">
+              <TableCell className="p-2 font-medium">{item.name}</TableCell>
+              <TableCell className="p-2 text-right">
                 <Badge variant={item.stock <= item.lowStockThreshold ? 'destructive' : 'secondary'}>
                   {item.stock} {item.unit}
                 </Badge>
@@ -218,3 +219,5 @@ export default function InventoryPage() {
     </>
   );
 }
+
+    

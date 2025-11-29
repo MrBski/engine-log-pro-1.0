@@ -142,7 +142,7 @@ export default function LogbookPage() {
     } else {
         const currentVal = form.getValues(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`);
         if (currentVal !== "") {
-            form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
+            form.setValue(`sections.${used4hoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
         }
     }
 
@@ -265,7 +265,7 @@ export default function LogbookPage() {
   }
   
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <AppHeader />
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -287,7 +287,7 @@ export default function LogbookPage() {
                     <FormControl>
                       <Input 
                         type="datetime-local" 
-                        className="h-12 text-lg font-bold text-center" 
+                        className="h-10 text-base font-bold text-center" 
                         {...field}
                         onKeyDown={handleKeyDown}
                       />
@@ -297,8 +297,8 @@ export default function LogbookPage() {
               />
 
               {sectionFields.map((section, sectionIndex) => (
-                <div key={section.id} className="space-y-3">
-                  <h3 className={`font-bold text-center p-2 my-2 rounded-md text-primary-foreground text-sm ${sectionColors[section.title] || 'bg-gray-500'}`}>
+                <div key={section.id} className="space-y-2">
+                  <h3 className={`font-bold text-center p-1.5 my-1 rounded-md text-primary-foreground text-xs ${sectionColors[section.title] || 'bg-gray-500'}`}>
                     {section.title}
                   </h3>
                   {section.readings.map((reading, readingIndex) => {
@@ -311,12 +311,12 @@ export default function LogbookPage() {
                         name={`sections.${sectionIndex}.readings.${readingIndex}.value`}
                         render={({ field }) => (
                             <FormItem className="flex items-center">
-                            <FormLabel className="w-1/2 text-sm font-medium">{originalReading?.key || 'N/A'}</FormLabel>
+                            <FormLabel className="w-1/2 text-xs font-medium">{originalReading?.key || 'N/A'}</FormLabel>
                             <FormControl>
                                 <Input
                                 type="tel"
                                 inputMode="decimal"
-                                className={`h-8 bg-card-foreground/5 text-right text-sm ${isReadOnly ? 'font-bold' : ''}`}
+                                className={`h-8 bg-card-foreground/5 text-right text-xs ${isReadOnly ? 'font-bold' : ''}`}
                                 readOnly={isReadOnly}
                                 {...field}
                                 value={field.value ?? ''}
@@ -331,15 +331,15 @@ export default function LogbookPage() {
                 </div>
               ))}
               
-              <div className="pt-4 space-y-2">
-                <h3 className="text-muted-foreground bg-muted p-2 my-2 rounded-md text-center font-bold text-sm">On Duty Engineer</h3>
+              <div className="pt-2 space-y-2">
+                <h3 className="text-muted-foreground bg-muted p-1.5 my-1 rounded-md text-center font-bold text-xs">On Duty Engineer</h3>
                 <FormField
                   control={form.control}
                   name="onDutyEngineer"
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold" placeholder="Engineer Name" {...field} onKeyDown={handleKeyDown} />
+                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold text-xs" placeholder="Engineer Name" {...field} onKeyDown={handleKeyDown} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -350,22 +350,22 @@ export default function LogbookPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold" placeholder="Position" {...field} onKeyDown={handleKeyDown} />
+                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold text-xs" placeholder="Position" {...field} onKeyDown={handleKeyDown} />
                       </FormControl>
                     </FormItem>
                   )}
                 />
               </div>
 
-               <div className="pt-4">
-                <h3 className="text-muted-foreground bg-muted p-2 my-2 rounded-md text-center font-bold text-sm">Condition</h3>
+               <div className="pt-2">
+                <h3 className="text-muted-foreground bg-muted p-1.5 my-1 rounded-md text-center font-bold text-xs">Condition</h3>
                 <FormField
                   control={form.control}
                   name="condition"
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Textarea className="font-bold text-center" placeholder="Any observations..." {...field} onKeyDown={handleKeyDown} />
+                        <Textarea className="font-bold text-center text-xs" placeholder="Any observations..." {...field} onKeyDown={handleKeyDown} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -382,3 +382,5 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
