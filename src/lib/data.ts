@@ -1,6 +1,6 @@
 export type EngineReading = {
   id: string;
-  key: string;
+  key: string; // e.g., "Main Engine RPM", or "M.E Port Side - RPM"
   value: string;
   unit: string;
 };
@@ -8,7 +8,7 @@ export type EngineReading = {
 export type EngineLog = {
   id: string;
   timestamp: string;
-  officer: string;
+  officer: string; // Name of the officer
   readings: EngineReading[];
   notes: string;
 };
@@ -48,9 +48,11 @@ export const getInitialData = () => ({
       timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
       officer: 'Chief Engineer',
       readings: [
-        { id: 'r1', key: 'Main Engine RPM', value: '85', unit: 'rpm' },
-        { id: 'r2', key: 'Fuel Consumption', value: '150', unit: 'L/hr' },
-        { id: 'r3', key: 'Oil Pressure', value: '4.5', unit: 'bar' },
+        { id: 'r1', key: 'M.E Port Side - RPM', value: '85', unit: 'rpm' },
+        { id: 'r2', key: 'M.E Port Side - L.O. PRESS', value: '4.5', unit: 'bar' },
+        { id: 'r3', key: 'M.E Starboard - RPM', value: '85', unit: 'rpm' },
+        { id: 'r4', key: 'M.E Starboard - L.O. PRESS', value: '4.6', unit: 'bar' },
+        { id: 'r5', key: 'Generator - VOLTS', value: '440', unit: 'V' },
       ],
       notes: 'All systems normal. Minor vibration noted on shaft.',
     },

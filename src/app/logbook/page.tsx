@@ -1,198 +1,247 @@
 "use client";
 
 import { useState } from 'react';
-import { PlusCircle, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from '@/components/ui/dialog';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type EngineLog, type AppSettings } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AppHeader } from '@/components/app-header';
+import { format } from 'date-fns';
+
+const readingSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+  unit: z.string(),
+});
+
+const logSectionSchema = z.object({
+  title: z.string(),
+  readings: z.array(readingSchema),
+});
 
 const logSchema = z.object({
-  officer: z.string().min(1, "Officer is required."),
-  rpm: z.string().min(1, "RPM is required."),
-  fuel: z.string().min(1, "Fuel Consumption is required."),
-  pressure: z.string().min(1, "Oil Pressure is required."),
-  notes: z.string().optional(),
+  timestamp: z.string().min(1, "Timestamp is required"),
+  sections: z.array(logSectionSchema),
+  onDutyEngineer: z.string().min(1, "On Duty Engineer name is required."),
+  dutyEngineerPosition: z.string().min(1, "On Duty Engineer position is required."),
+  condition: z.string().optional(),
 });
+
+type LogFormData = z.infer<typeof logSchema>;
+
+const initialSections: LogFormData['sections'] = [
+    {
+      title: 'M.E Port Side',
+      readings: [
+        { key: 'RPM', value: '', unit: 'rpm' },
+        { key: 'L.O. PRESS', value: '', unit: 'bar' },
+        { key: 'Exhaust 1', value: '', unit: '°C' },
+        { key: 'Exhaust 2', value: '', unit: '°C' },
+        { key: 'Radiator', value: '', unit: '°C' },
+        { key: 'SW Temp', value: '', unit: '°C' },
+        { key: 'F.W. COOLERS In', value: '', unit: '°C' },
+        { key: 'F.W. COOLERS Out', value: '', unit: '°C' },
+        { key: 'L.O. COOLERS In', value: '', unit: '°C' },
+        { key: 'L.O. COOLERS Out', value: '', unit: '°C' },
+      ],
+    },
+    {
+      title: 'M.E Starboard',
+      readings: [
+        { key: 'RPM', value: '', unit: 'rpm' },
+        { key: 'L.O. PRESS', value: '', unit: 'bar' },
+        { key: 'Exhaust 1', value: '', unit: '°C' },
+        { key: 'Exhaust 2', value: '', unit: '°C' },
+        { key: 'Radiator', value: '', unit: '°C' },
+        { key: 'SW Temp', value: '', unit: '°C' },
+        { key: 'F.W. COOLERS In', value: '', unit: '°C' },
+        { key: 'F.W. COOLERS Out', value: '', unit: '°C' },
+        { key: 'L.O. COOLERS In', value: '', unit: '°C' },
+        { key: 'L.O. COOLERS Out', value: '', unit: '°C' },
+      ],
+    },
+    {
+      title: 'Generator',
+      readings: [
+        { key: 'L.O. PRESS', value: '', unit: 'bar' },
+        { key: 'F.W. TEMP', value: '', unit: '°C' },
+        { key: 'VOLTS', value: '', unit: 'V' },
+        { key: 'AMPERE', value: '', unit: 'A' },
+      ],
+    },
+    {
+      title: 'Flowmeter',
+      readings: [
+        { key: 'Before', value: '', unit: 'L' },
+        { key: 'After', value: '', unit: 'L' },
+      ],
+    },
+];
+
+const sectionColors: { [key: string]: string } = {
+    'M.E Port Side': 'bg-red-600',
+    'M.E Starboard': 'bg-green-600',
+    'Generator': 'bg-sky-600',
+    'Flowmeter': 'bg-amber-600',
+};
 
 export default function LogbookPage() {
   const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
   const [settings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const form = useForm<z.infer<typeof logSchema>>({
+  const form = useForm<LogFormData>({
     resolver: zodResolver(logSchema),
     defaultValues: {
-        officer: "",
-        rpm: "",
-        fuel: "",
-        pressure: "",
-        notes: "",
+      timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      sections: initialSections,
+      onDutyEngineer: settings.officers.length > 0 ? settings.officers[0] : '',
+      dutyEngineerPosition: "Chief Engineer", // example default
+      condition: ""
     },
   });
 
-  function onSubmit(values: z.infer<typeof logSchema>) {
+  const { fields: sectionFields } = useFieldArray({
+    control: form.control,
+    name: "sections",
+  });
+
+  function onSubmit(values: LogFormData) {
     const newLog: EngineLog = {
       id: `log-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      officer: values.officer,
-      readings: [
-        { id: 'r1', key: 'Main Engine RPM', value: values.rpm, unit: 'rpm' },
-        { id: 'r2', key: 'Fuel Consumption', value: values.fuel, unit: 'L/hr' },
-        { id: 'r3', key: 'Oil Pressure', value: values.pressure, unit: 'bar' },
-      ],
-      notes: values.notes || 'No notes.',
+      timestamp: new Date(values.timestamp).toISOString(),
+      officer: values.onDutyEngineer,
+      readings: values.sections.flatMap(s => 
+        s.readings.map(r => ({
+          id: `reading-${Date.now()}-${s.title}-${r.key}`,
+          key: `${s.title} - ${r.key}`,
+          value: r.value,
+          unit: r.unit,
+        }))
+      ),
+      notes: values.condition || 'No conditions noted.',
     };
     setLogs(prevLogs => [newLog, ...prevLogs]);
     toast({ title: "Success", description: "New engine log has been recorded." });
-    form.reset();
-    setIsDialogOpen(false);
+    form.reset({
+        timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+        sections: initialSections,
+        onDutyEngineer: settings.officers.length > 0 ? settings.officers[0] : '',
+        dutyEngineerPosition: "Chief Engineer",
+        condition: ""
+    });
   }
-
-  const handleDeleteLog = (logId: string) => {
-    setLogs(logs.filter(log => log.id !== logId));
-    toast({ title: "Log Deleted", description: "The log entry has been removed." });
-  };
   
-  const getReading = (log: EngineLog, key: string) => log.readings.find(r => r.key.includes(key))?.value || '-';
 
   return (
     <div className="flex flex-col gap-6">
-    <AppHeader />
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <div>
-            {/* This content is now in the AppHeader */}
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" /> New Log Entry
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>New Engine Log</DialogTitle>
-              <DialogDescription>Record the current engine readings.</DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <AppHeader />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-center">New Engine Log Sheet</CardTitle>
+        </CardHeader>
+        <CardContent className="max-w-md mx-auto space-y-4 text-sm">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="timestamp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input 
+                        type="datetime-local" 
+                        className="h-12 text-lg font-bold text-center" 
+                        {...field} 
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              {sectionFields.map((section, sectionIndex) => (
+                <div key={section.id} className="space-y-3">
+                  <h3 className={`font-bold text-center p-2 my-2 rounded-md text-primary-foreground text-sm ${sectionColors[section.title] || 'bg-gray-500'}`}>
+                    {section.title}
+                  </h3>
+                  {section.readings.map((reading, readingIndex) => (
+                    <FormField
+                      key={`${section.id}-${readingIndex}`}
+                      control={form.control}
+                      name={`sections.${sectionIndex}.readings.${readingIndex}.value`}
+                      render={({ field }) => (
+                        <FormItem className="flex items-center">
+                          <FormLabel className="w-1/2 text-sm font-medium">{reading.key}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="tel"
+                              inputMode="decimal"
+                              className="h-8 bg-card-foreground/5 text-right text-sm"
+                              {...field}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
+              ))}
+              
+              <div className="pt-4 space-y-2">
+                <h3 className="text-muted-foreground bg-muted p-2 my-2 rounded-md text-center font-bold text-sm">On Duty Engineer</h3>
                 <FormField
                   control={form.control}
-                  name="officer"
+                  name="onDutyEngineer"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Officer on Watch</FormLabel>                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select an officer" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {settings.officers.map(officer => (
-                            <SelectItem key={officer} value={officer}>{officer}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
+                      <FormControl>
+                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold" placeholder="Engineer Name" {...field} />
+                      </FormControl>
                     </FormItem>
                   )}
                 />
-                <div className="grid grid-cols-3 gap-4">
-                    <FormField control={form.control} name="rpm" render={({ field }) => (
-                        <FormItem><FormLabel>RPM</FormLabel><FormControl><Input placeholder="85" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="fuel" render={({ field }) => (
-                        <FormItem><FormLabel>Fuel (L/hr)</FormLabel><FormControl><Input placeholder="150" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="pressure" render={({ field }) => (
-                        <FormItem><FormLabel>Pressure (bar)</FormLabel><FormControl><Input placeholder="4.5" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                </div>
-                <FormField control={form.control} name="notes" render={({ field }) => (
-                    <FormItem><FormLabel>Notes</FormLabel><FormControl><Textarea placeholder="Any observations..." {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                 <DialogFooter>
-                    <DialogClose asChild>
-                        <Button type="button" variant="secondary">Cancel</Button>
-                    </DialogClose>
-                    <Button type="submit">Save Log</Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date & Time</TableHead>
-              <TableHead>Officer</TableHead>
-              <TableHead>RPM</TableHead>
-              <TableHead>Fuel Cons.</TableHead>
-              <TableHead>LO Pressure</TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead><span className="sr-only">Actions</span></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map(log => (
-              <TableRow key={log.id}>
-                <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
-                <TableCell>{log.officer}</TableCell>
-                <TableCell>{getReading(log, 'RPM')} rpm</TableCell>
-                <TableCell>{getReading(log, 'Fuel')} L/hr</TableCell>
-                <TableCell>{getReading(log, 'Pressure')} bar</TableCell>
-                <TableCell className="max-w-[200px] truncate">{log.notes}</TableCell>
-                <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem disabled>
-                          <Edit className="mr-2 h-4 w-4" />
-                          <span>Edit</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDeleteLog(log.id)} className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          <span>Delete</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+                 <FormField
+                  control={form.control}
+                  name="dutyEngineerPosition"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold" placeholder="Position" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+               <div className="pt-4">
+                <h3 className="text-muted-foreground bg-muted p-2 my-2 rounded-md text-center font-bold text-sm">Condition</h3>
+                <FormField
+                  control={form.control}
+                  name="condition"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Textarea className="font-bold text-center" placeholder="Any observations..." {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <div className="pt-4">
+                <Button type="submit" className="w-full">Save Log</Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
