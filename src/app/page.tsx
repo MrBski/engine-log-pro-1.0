@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Clock, Fuel, Gauge } from "lucide-react";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type InventoryItem, type EngineLog } from "@/lib/data";
@@ -48,10 +47,10 @@ export default function DashboardPage() {
 
   if (!mounted) {
     return (
-        <div className="flex flex-col gap-6">
-            <AppHeader />
-            {/* You can add skeleton loaders here */}
-        </div>
+      <>
+        <AppHeader />
+        {/* You can add skeleton loaders here */}
+      </>
     );
   }
 
@@ -59,46 +58,34 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6">
       <AppHeader />
       {/* Stat Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Running Hours</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">1,204 hrs</div>
-            <p className="text-xs text-muted-foreground">Total since last overhaul</p>
-          </CardContent>
+      <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="flex items-center p-4">
+          <Clock className="h-6 w-6 text-muted-foreground mr-4" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-muted-foreground">Running Hours</p>
+            <p className="text-xl font-bold">1,204 hrs</p>
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Fuel Consumption</CardTitle>
-            <Fuel className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{latestLog ? getReading(latestLog, 'Fuel') : 'N/A'}</div>
-            <p className="text-xs text-muted-foreground">Latest recorded value</p>
-          </CardContent>
+        <Card className="flex items-center p-4">
+          <Fuel className="h-6 w-6 text-muted-foreground mr-4" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-muted-foreground">Fuel Consumption</p>
+            <p className="text-xl font-bold">{latestLog ? getReading(latestLog, 'Fuel') : 'N/A'}</p>
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Lube Oil Pressure</CardTitle>
-            <Gauge className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{latestLog ? getReading(latestLog, 'Pressure') : 'N/A'}</div>
-            <p className="text-xs text-muted-foreground">Latest recorded value</p>
-          </CardContent>
+        <Card className="flex items-center p-4">
+          <Gauge className="h-6 w-6 text-muted-foreground mr-4" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-muted-foreground">Lube Oil Pressure</p>
+            <p className="text-xl font-bold">{latestLog ? getReading(latestLog, 'Pressure') : 'N/A'}</p>
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
-            <AlertCircle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{lowStockItems.length} items</div>
-            <p className="text-xs text-muted-foreground">Require re-ordering</p>
-          </CardContent>
+        <Card className="flex items-center p-4">
+          <AlertCircle className="h-6 w-6 text-destructive mr-4" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-muted-foreground">Low Stock Alerts</p>
+            <p className="text-xl font-bold">{lowStockItems.length} items</p>
+          </div>
         </Card>
       </div>
 
@@ -123,7 +110,7 @@ export default function DashboardPage() {
               <TableBody>
                 {recentLogs.map(log => (
                   <TableRow key={log.id}>
-                    <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+                    <TableCell>{new Date(log.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'})}</TableCell>
                     <TableCell>{log.officer}</TableCell>
                     <TableCell>{getReading(log, 'RPM')}</TableCell>
                     <TableCell>{getReading(log, 'Fuel')}</TableCell>
