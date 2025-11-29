@@ -7,10 +7,7 @@ import { useRouter } from 'next/navigation';
 // A temporary, hardcoded user list for demonstration.
 // In a real app, this would come from a database.
 const DEMO_USERS = {
-  'Chief': 'password123',
-  '2nd Engineer': 'password123',
-  'Oiler': 'password123',
-  'Chief Engineer': 'password123'
+  'basuki': 'sayasekolah',
 };
 type DemoUser = keyof typeof DEMO_USERS;
 
