@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
-import { getInitialData, type ActivityLog, type EngineLog, type EngineReading } from "@/lib/data";
+import { getInitialData, type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
 import { Trash2, History, FileJson, Archive, Eye } from "lucide-react";
@@ -17,7 +18,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { initialSections } from "@/app/logbook/page";
 import { cn } from "@/lib/utils";
 
 const sectionColors: { [key: string]: string } = {
@@ -29,13 +29,13 @@ const sectionColors: { [key: string]: string } = {
     'Others': 'bg-slate-500'
 };
 
-function LogEntryCard({ log }: { log: EngineLog }) {
+function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSections: LogSection[] }) {
 
     const getReadingsForSection = (title: string) => {
         return log.readings.filter(r => r.key.startsWith(title));
     }
 
-    const sections = initialSections.map(s => ({
+    const sections = logbookSections.map(s => ({
         ...s,
         readings: getReadingsForSection(s.title)
     })).filter(s => s.readings.length > 0 && s.readings.some(r => r.value));
@@ -97,6 +97,7 @@ function LogEntryCard({ log }: { log: EngineLog }) {
 export default function LogActivityPage() {
     const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', getInitialData().activityLog);
     const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
+    const [logbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
     const { toast } = useToast();
 
     const handleDeleteLog = (logId: string) => {
@@ -160,7 +161,7 @@ export default function LogActivityPage() {
                                         <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
                                     </DialogTrigger>
                                     {/* Find the full log from the logs array to pass to the card */}
-                                    <LogEntryCard log={logs.find(l => l.id === activity.id) as EngineLog} />
+                                    <LogEntryCard log={logs.find(l => l.id === activity.id) as EngineLog} logbookSections={logbookSections} />
                                 </Dialog>
 
                                 <AlertDialog>
