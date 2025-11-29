@@ -1,7 +1,7 @@
 
 "use client";
 
-import { KeyboardEvent } from 'react';
+import { KeyboardEvent, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -137,6 +137,28 @@ export default function LogbookPage() {
     control: form.control,
     name: "sections",
   });
+  
+  const watchedSections = form.watch("sections");
+
+  useEffect(() => {
+    const onDutyBeforeStr = watchedSections.find(s => s.title === 'On Duty')?.readings.find(r => r.key === 'Before')?.value;
+    const dailyTankBeforeStr = watchedSections.find(s => s.title === 'Daily Tank')?.readings.find(r => r.key === 'Before')?.value;
+
+    const onDutyBefore = parseFloat(onDutyBeforeStr || '0');
+    const dailyTankBefore = parseFloat(dailyTankBeforeStr || '0');
+
+    if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
+        const used4Hours = (onDutyBefore - dailyTankBefore) * 21;
+        const othersSectionIndex = watchedSections.findIndex(s => s.title === 'Others');
+        if (othersSectionIndex !== -1) {
+            const used4HoursReadingIndex = watchedSections[othersSectionIndex].readings.findIndex(r => r.key === 'USED 4 Hours');
+            if (used4HoursReadingIndex !== -1) {
+                form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: true });
+            }
+        }
+    }
+  }, [watchedSections, form]);
+
 
   function onSubmit(values: LogFormData) {
     const newLog: EngineLog = {
@@ -299,7 +321,5 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
 
     
