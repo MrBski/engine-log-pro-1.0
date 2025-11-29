@@ -10,6 +10,7 @@ const DEMO_USERS = {
   'Chief': 'password123',
   '2nd Engineer': 'password123',
   'Oiler': 'password123',
+  'Chief Engineer': 'password123'
 };
 type DemoUser = keyof typeof DEMO_USERS;
 
