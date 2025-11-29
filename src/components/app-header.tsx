@@ -1,14 +1,13 @@
 "use client";
 
 import React from 'react';
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SyncStatus } from "@/components/sync-status";
 import { usePathname } from "next/navigation";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import Link from "next/link";
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type AppSettings } from '@/lib/data';
-import { Button } from '@/components/ui/button';
+import { Anchor } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+
 
 export function AppHeader() {
   const pathname = usePathname();
@@ -21,7 +20,7 @@ export function AppHeader() {
           <div>
             <h1 className="text-2xl font-semibold">Dashboard</h1>
             <p className="text-sm text-muted-foreground">
-              Welcome to the engine room dashboard for {settings.shipName}.
+              Welcome to {settings.shipName}.
             </p>
           </div>
       )
@@ -46,11 +45,15 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-10 flex h-20 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm lg:px-6">
       <div className="flex items-center gap-4">
-        <SidebarTrigger className="md:hidden" />
+        <Anchor className="size-8 text-primary" />
         {getBreadcrumb()}
       </div>
       <div className="flex items-center gap-4">
         <SyncStatus />
+        <Avatar className="size-10">
+            <AvatarImage src="https://picsum.photos/seed/user/40/40" data-ai-hint="profile picture" alt="User" />
+            <AvatarFallback>CE</AvatarFallback>
+        </Avatar>
       </div>
     </header>
   );

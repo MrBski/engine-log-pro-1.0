@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Clock, Fuel, Gauge } from "lucide-react";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type InventoryItem, type EngineLog } from "@/lib/data";
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid } from "recharts";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
+import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
+import { AppHeader } from "@/components/app-header";
 
 export default function DashboardPage() {
   const [inventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
@@ -18,7 +19,6 @@ export default function DashboardPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
-
 
   const lowStockItems = inventory.filter(item => item.stock <= item.lowStockThreshold);
   const latestLog = logs.length > 0 ? logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0] : null;
@@ -47,11 +47,17 @@ export default function DashboardPage() {
   };
 
   if (!mounted) {
-    return null;
+    return (
+        <div className="flex flex-col gap-6">
+            <AppHeader />
+            {/* You can add skeleton loaders here */}
+        </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
+      <AppHeader />
       {/* Stat Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -133,7 +139,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Performance Overview</CardTitle>
-          </CardHeader>
+          </Header>
           <CardContent className="h-[300px] pl-2">
             <ChartContainer config={chartConfig} className="w-full h-full">
                 <BarChart accessibilityLayer data={chartData}>
@@ -147,8 +153,8 @@ export default function DashboardPage() {
                     />
                     <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-1))" />
                     <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-2))" />
-                    <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
-                    <ChartLegend content={<ChartLegendContent />} />
+                    <Tooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
+                    <Legend content={<ChartLegendContent />} />
                     <Bar dataKey="rpm" fill="var(--color-rpm)" radius={4} yAxisId="left" />
                     <Bar dataKey="fuel" fill="var(--color-fuel)" radius={4} yAxisId="right" />
                 </BarChart>

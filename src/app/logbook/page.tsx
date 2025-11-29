@@ -26,6 +26,7 @@ import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type EngineLog, type AppSettings } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AppHeader } from '@/components/app-header';
 
 const logSchema = z.object({
   officer: z.string().min(1, "Officer is required."),
@@ -78,6 +79,8 @@ export default function LogbookPage() {
   const getReading = (log: EngineLog, key: string) => log.readings.find(r => r.key.includes(key))?.value || '-';
 
   return (
+    <div className="flex flex-col gap-6">
+    <AppHeader />
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <div>
@@ -101,8 +104,7 @@ export default function LogbookPage() {
                   name="officer"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Officer on Watch</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormLabel>Officer on Watch</FormLabel>                      <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select an officer" />
@@ -191,5 +193,6 @@ export default function LogbookPage() {
         </Table>
       </CardContent>
     </Card>
+    </div>
   );
 }

@@ -26,6 +26,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { AppHeader } from '@/components/app-header';
 
 const itemSchema = z.object({
   name: z.string().min(1, "Item name is required."),
@@ -109,6 +110,7 @@ export default function InventoryPage() {
 
   return (
     <>
+      <AppHeader />
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <div>

@@ -1,10 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/app-sidebar';
-import { AppHeader } from '@/components/app-header';
 import { Toaster } from "@/components/ui/toaster";
 import { Inter } from 'next/font/google';
+import BottomNav from '@/components/bottom-nav';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -22,13 +20,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className="dark">
       <head />
       <body className={`font-sans antialiased ${inter.variable}`}>
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset>
-            <AppHeader />
-            <main className="p-4 lg:p-6">{children}</main>
-          </SidebarInset>
-        </SidebarProvider>
+        <div className="flex flex-col min-h-screen">
+          <main className="flex-1 p-4 lg:p-6 mb-16">{children}</main>
+          <BottomNav />
+        </div>
         <Toaster />
       </body>
     </html>
