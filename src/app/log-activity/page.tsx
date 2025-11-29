@@ -8,7 +8,6 @@ import { Trash2, History, FileJson, Archive, Eye } from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -18,7 +17,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useState } from "react";
 import { initialSections } from "@/app/logbook/page";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +24,9 @@ const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
     'M.E Starboard': 'bg-green-600',
     'Generator': 'bg-sky-600',
+    'Daily Tank': 'bg-purple-600',
     'Flowmeter': 'bg-amber-600',
+    'Others': 'bg-slate-500'
 };
 
 function LogEntryCard({ log }: { log: EngineLog }) {
@@ -38,7 +38,7 @@ function LogEntryCard({ log }: { log: EngineLog }) {
     const sections = initialSections.map(s => ({
         ...s,
         readings: getReadingsForSection(s.title)
-    })).filter(s => s.readings.length > 0);
+    })).filter(s => s.readings.length > 0 && s.readings.some(r => r.value));
 
     const renderReading = (reading: EngineReading) => (
         <div key={reading.id} className="flex items-center border-b border-white/5 py-0.5">
@@ -73,7 +73,7 @@ function LogEntryCard({ log }: { log: EngineLog }) {
                     </div>
                     
                     <div className="space-y-1 pt-2">
-                        <div className="text-center space-y-0.5">
+                         <div className="text-center space-y-0.5">
                             <div className="h-6 text-center font-semibold flex items-center justify-center rounded-md bg-accent text-accent-foreground">
                                 {log.officer}
                             </div>
@@ -100,8 +100,13 @@ export default function LogActivityPage() {
     const { toast } = useToast();
 
     const handleDeleteLog = (logId: string) => {
+        const logToDelete = logs.find(log => log.id === logId);
+        if (!logToDelete) return;
+    
+        // Also remove associated activity
+        setActivityLog(prev => prev.filter(activity => activity.id !== logId));
         setLogs(prev => prev.filter(log => log.id !== logId));
-        setActivityLog(prev => prev.filter(log => log.id !== logId));
+        
         toast({ title: "Log Deleted", description: "The log entry has been removed." });
     };
 
@@ -147,13 +152,15 @@ export default function LogActivityPage() {
                             </div>
                         </div>
 
-                        {activity.type === 'engine' && (
-                             <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
+                           {activity.type === 'engine' && (
+                            <>
                                 <Dialog>
                                     <DialogTrigger asChild>
                                         <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
                                     </DialogTrigger>
-                                    <LogEntryCard log={activity} />
+                                    {/* Find the full log from the logs array to pass to the card */}
+                                    <LogEntryCard log={logs.find(l => l.id === activity.id) as EngineLog} />
                                 </Dialog>
 
                                 <AlertDialog>
@@ -175,8 +182,9 @@ export default function LogActivityPage() {
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
-                            </div>
-                        )}
+                            </>
+                           )}
+                        </div>
                     </Card>
                 ))}
             </div>
