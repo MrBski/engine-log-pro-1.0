@@ -2,7 +2,6 @@
 "use client";
 
 import { useState } from 'react';
-import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type LogSection, type Reading } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,7 +34,7 @@ const sectionSchema = z.object({
 });
 
 export default function LogbookSettingsPage() {
-  const [logbookSections, setLogbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
+  const [logbookSections, setLogbookSections] = useState<LogSection[]>(getInitialData().logbookSections);
   const { toast } = useToast();
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
 
@@ -233,3 +232,5 @@ export default function LogbookSettingsPage() {
     </div>
   );
 }
+
+    

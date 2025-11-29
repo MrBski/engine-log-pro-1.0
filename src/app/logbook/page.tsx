@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type EngineLog, type AppSettings, type ActivityLog, type LogSection } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { AppHeader } from '@/components/app-header';
@@ -51,10 +50,10 @@ const sectionColors: { [key: string]: string } = {
 };
 
 export default function LogbookPage() {
-  const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', []);
-  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', []);
-  const [settings, setSettings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
-  const [logbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
+  const [logs, setLogs] = useState<EngineLog[]>(getInitialData().logs);
+  const [activityLog, setActivityLog] = useState<ActivityLog[]>(getInitialData().activityLog);
+  const [settings, setSettings] = useState<AppSettings>(getInitialData().settings);
+  const [logbookSections] = useState<LogSection[]>(getInitialData().logbookSections);
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -142,7 +141,7 @@ export default function LogbookPage() {
     } else {
         const currentVal = form.getValues(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`);
         if (currentVal !== "") {
-            form.setValue(`sections.${used4hoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
+            form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
         }
     }
 
@@ -382,3 +381,5 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    

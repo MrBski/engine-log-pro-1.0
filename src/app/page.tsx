@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Icons } from "@/components/icons";
-import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type InventoryItem, type EngineLog, type AppSettings, type ActivityLog } from "@/lib/data";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
@@ -24,10 +23,10 @@ function formatDuration(seconds: number) {
 }
 
 export default function DashboardPage() {
-  const [inventory] = useLocalStorage<InventoryItem[]>('inventory', []);
-  const [logs] = useLocalStorage<EngineLog[]>('logs', []);
-  const [settings, setSettings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
-  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', []);
+  const [inventory, setInventory] = useState<InventoryItem[]>(getInitialData().inventory);
+  const [logs, setLogs] = useState<EngineLog[]>(getInitialData().logs);
+  const [settings, setSettings] = useState<AppSettings>(getInitialData().settings);
+  const [activityLog, setActivityLog] = useState<ActivityLog[]>(getInitialData().activityLog);
   const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -273,3 +272,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

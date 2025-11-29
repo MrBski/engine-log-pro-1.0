@@ -1,10 +1,9 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { SyncStatus } from "@/components/sync-status";
 import { usePathname } from "next/navigation";
-import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type AppSettings } from '@/lib/data';
 import { Icons } from './icons';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -14,7 +13,7 @@ import { Button } from './ui/button';
 
 export function AppHeader() {
   const pathname = usePathname();
-  const [settings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
+  const [settings] = useState<AppSettings>(getInitialData().settings);
   const { user, logout } = useAuth();
 
 
@@ -67,3 +66,5 @@ export function AppHeader() {
     </header>
   );
 }
+
+    

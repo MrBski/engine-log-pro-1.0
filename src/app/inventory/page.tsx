@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type InventoryItem, type InventoryCategory, type ActivityLog } from '@/lib/data';
 import {
   Dialog,
@@ -43,8 +42,8 @@ const useItemSchema = z.object({
 });
 
 export default function InventoryPage() {
-  const [inventory, setInventory] = useLocalStorage<InventoryItem[]>('inventory', []);
-  const [activityLog, setActivityLog] = useLocalStorage<ActivityLog[]>('activityLog', []);
+  const [inventory, setInventory] = useState<InventoryItem[]>(getInitialData().inventory);
+  const [activityLog, setActivityLog] = useState<ActivityLog[]>(getInitialData().activityLog);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -219,3 +218,5 @@ export default function InventoryPage() {
     </>
   );
 }
+
+    
