@@ -92,6 +92,12 @@ export const initialSections: LogFormData['sections'] = [
       ],
     },
     {
+      title: 'On Duty',
+      readings: [
+        { key: 'Before', value: '', unit: 'L' },
+      ],
+    },
+    {
         title: 'Others',
         readings: [
             { key: 'RoB', value: '', unit: 'L' },
@@ -106,6 +112,7 @@ const sectionColors: { [key: string]: string } = {
     'Generator': 'bg-sky-600',
     'Daily Tank': 'bg-purple-600',
     'Flowmeter': 'bg-amber-600',
+    'On Duty': 'bg-cyan-600',
     'Others': 'bg-slate-500'
 };
 
@@ -229,6 +236,7 @@ export default function LogbookPage() {
                               type="tel"
                               inputMode="decimal"
                               className="h-8 bg-card-foreground/5 text-right text-sm"
+                              readOnly={reading.key === 'USED 4 Hours'}
                               {...field}
                               onKeyDown={handleKeyDown}
                             />
