@@ -154,7 +154,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
                                 <div className="flex items-center border-b border-white/5 py-0.5">
                                     <label className="w-1/2 font-bold text-xs text-foreground">Jam ke-4 (ROB Akhir)</label>
                                     <div className="w-1/2 text-right font-mono text-xs font-bold">{robHour4.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
-                                </div>
+                                sem</div>
                             </div>
                         )}
                     </div>
