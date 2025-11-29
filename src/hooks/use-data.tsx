@@ -21,7 +21,7 @@ interface DataContextType {
   updateSettings: (newSettings: Partial<AppSettings>) => Promise<void>;
   
   logs: EngineLog[] | undefined;
-  addLog: (log: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => Promise<void>;
+  addLog: (log: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => Promise<string | undefined>;
   deleteLog: (logId: string) => Promise<void>;
 
   inventory: InventoryItem[] | undefined;
@@ -29,7 +29,7 @@ interface DataContextType {
   updateInventoryItem: (itemId: string, updates: Partial<InventoryItem>) => Promise<void>;
   
   activityLog: ActivityLog[] | undefined;
-  addActivityLog: (activity: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => Promise<void>;
+  addActivityLog: (activity: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date; logId?: string }) => Promise<void>;
 
   logbookSections: LogSection[] | undefined;
   updateLogbookSections: (sections: LogSection[]) => Promise<void>;
@@ -69,26 +69,33 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     // This effect initializes the database with default data if it's empty
     useEffect(() => {
         // Only run this if we have a user and all initial loading states are false
-        if (db && user && !loadingSettings && !loadingLogbook) {
-            const batch = writeBatch(db);
-            let writesMade = false;
+        if (db && user && !isAuthLoading && settings === undefined && logbookData === undefined) {
+             const initializeData = async () => {
+                const initial = getInitialData();
+                const batch = writeBatch(db);
+                let writesMade = false;
 
-            if (settings === undefined && settingsRef) {
-                console.log("Initializing settings document...");
-                batch.set(settingsRef, getInitialData().settings);
-                writesMade = true;
-            }
-            if (logbookData === undefined && logbookRef) {
-                console.log("Initializing logbookSections document...");
-                batch.set(logbookRef, { sections: getInitialData().logbookSections });
-                writesMade = true;
-            }
+                if (settings === undefined && settingsRef) {
+                    console.log("Initializing settings document...");
+                    batch.set(settingsRef, initial.settings);
+                    writesMade = true;
+                }
+                if (logbookData === undefined && logbookRef) {
+                    console.log("Initializing logbookSections document...");
+                    batch.set(logbookRef, { sections: initial.logbookSections });
+                    writesMade = true;
+                }
 
-            if (writesMade) {
-                batch.commit().catch(e => console.error("Failed to initialize data:", e));
-            }
+                if (writesMade) {
+                    await batch.commit().catch(e => console.error("Failed to initialize data:", e));
+                }
+            };
+            
+            // Check after a short delay to allow hooks to get the initial data
+            const timer = setTimeout(initializeData, 1500);
+            return () => clearTimeout(timer);
         }
-    }, [db, user, settings, logbookData, loadingSettings, loadingLogbook, settingsRef, logbookRef]);
+    }, [db, user, isAuthLoading, settings, logbookData, settingsRef, logbookRef]);
 
 
     // --- Functions ---
@@ -104,7 +111,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             ...log,
             timestamp: Timestamp.fromDate(log.timestamp),
         }
-        await addDoc(logsCol, newLog);
+        const docRef = await addDoc(logsCol, newLog);
+        return docRef.id;
     };
     
     const deleteLog = async (logId: string) => {

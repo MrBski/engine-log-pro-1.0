@@ -151,13 +151,17 @@ export default function LogbookPage() {
     };
 
     try {
-        await addLog(newLogData);
-        await addActivityLog({
-            ...newLogData,
-            type: 'engine',
-            name: 'Engine Log Entry', 
-            category: 'main-engine' 
-        });
+        const newLogId = await addLog(newLogData);
+        if (newLogId) {
+            await addActivityLog({
+                type: 'engine',
+                logId: newLogId,
+                timestamp: newLogData.timestamp,
+                officer: newLogData.officer,
+                name: 'Engine Log Entry',
+                category: 'main-engine'
+            });
+        }
 
         if (settings) {
             await updateSettings({ runningHours: (settings.runningHours || 0) + 4 });

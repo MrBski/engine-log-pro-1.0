@@ -41,7 +41,7 @@ export type InventoryItem = {
 };
 
 export type ActivityLog = 
-  | ({ type: 'engine' } & Omit<EngineLog, 'id'|'timestamp'> & { id?: string; timestamp: Timestamp | string })
+  | ({ type: 'engine', logId: string, officer: string } & { id: string; timestamp: Timestamp | string })
   | { type: 'inventory'; notes: string; name: string; category: InventoryCategory; id: string; timestamp: Timestamp | string }
   | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Timestamp | string };
 
