@@ -32,15 +32,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
-    // Check for a logged-in user in session storage on initial load
+    // Check for a logged-in user in local storage on initial load
     try {
-      const storedUser = sessionStorage.getItem('user');
+      const storedUser = localStorage.getItem('user');
       if (storedUser) {
         setUser(JSON.parse(storedUser));
       }
     } catch (error) {
-      console.error('Failed to parse user from session storage', error);
-      sessionStorage.removeItem('user');
+      console.error('Failed to parse user from local storage', error);
+      localStorage.removeItem('user');
     } finally {
       setIsLoading(false);
     }
@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     if (validUser && DEMO_USERS[validUser] === password) {
       const userData: User = { name: validUser };
-      sessionStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
       router.push('/');
     } else {
@@ -60,7 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
-    sessionStorage.removeItem('user');
+    localStorage.removeItem('user');
     setUser(null);
     router.push('/login');
   };
