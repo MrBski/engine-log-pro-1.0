@@ -80,8 +80,8 @@ export const initialSections: LogFormData['sections'] = [
     {
         title: 'Daily Tank',
         readings: [
-            { key: 'Sounding', value: '', unit: 'cm' },
-            { key: 'Volume', value: '', unit: 'L' },
+            { key: 'Before', value: '', unit: 'cm' },
+            { key: 'After', value: '', unit: 'L' },
         ],
     },
     {
@@ -299,5 +299,7 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
 
     
