@@ -34,20 +34,30 @@ const sectionColors: { [key: string]: string } = {
     'Fuel Consumption': 'bg-orange-600',
 };
 
-const toLocaleString = (timestamp: Timestamp | Date | string | undefined): string => {
-    if (!timestamp) return '...';
-    if (typeof timestamp === 'string') {
-        return new Date(timestamp).toLocaleString();
+const safeToDate = (timestamp: Timestamp | Date | string | undefined): Date | null => {
+    if (!timestamp) return null;
+    if (timestamp instanceof Date) return timestamp;
+    if (typeof timestamp === 'string') return new Date(timestamp);
+    if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+      return timestamp.toDate();
     }
-    if ('toDate' in timestamp) { // Firestore Timestamp
-        return timestamp.toDate().toLocaleString();
+    return null;
+};
+
+const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions = {}): string => {
+    if (!date) return '...';
+    try {
+        return date.toLocaleString(undefined, options);
+    } catch {
+        return 'Invalid Date';
     }
-    return (timestamp as Date).toLocaleString();
 }
 
 function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
     const { toast } = useToast();
     const printRef = useRef<HTMLDivElement>(null);
+    
+    const logTimestamp = safeToDate(log?.timestamp);
 
     const handleShare = useCallback(async () => {
         if (!printRef.current) {
@@ -69,7 +79,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
                 await navigator.share({
                     files: [file],
                     title: 'Engine Log',
-                    text: `Engine Log Entry for ${toLocaleString(log?.timestamp)}`,
+                    text: `Engine Log Entry for ${formatSafeDate(logTimestamp)}`,
                 });
             } else {
                 const link = document.createElement('a');
@@ -85,13 +95,13 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
                 description: 'Could not generate or share the log image.'
             });
         }
-    }, [log, toast]);
+    }, [log, logTimestamp, toast]);
 
     if (!log) {
         return (
              <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Error</DialogTitle>
+                    <DialogTitle>Log Not Found</DialogTitle>
                 </DialogHeader>
                 <p>Log data not found or is still syncing. Please try again in a moment.</p>
                 <DialogFooter>
@@ -143,7 +153,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
             <div className="max-h-[80vh] overflow-y-auto p-1">
                 <div ref={printRef} className="space-y-1 bg-card p-1 rounded-lg text-sm">
                     <div className="font-bold text-center text-sm h-8 flex items-center justify-center bg-muted/50 rounded-md">
-                        {toLocaleString(log.timestamp)}
+                        {formatSafeDate(logTimestamp)}
                     </div>
                     <div className="grid md:grid-cols-2 gap-1">
                         {sections.map(section => (
@@ -163,7 +173,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
                                     <label className="w-1/2 font-medium text-xs text-muted-foreground">ROB Awal</label>
                                     <div className="w-1/2 text-right font-mono text-xs font-semibold">{robValue.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
                                 </div>
-                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                <div className="flex items-center border-b border-white/5 py.0.5">
                                     <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-1</label>
                                     <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour1.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
                                 </div>
@@ -265,20 +275,6 @@ export default function LogActivityPage() {
             default: return null;
         }
     }
-    
-    const toShortLocaleString = (timestamp: Timestamp | Date | string | undefined): string => {
-      if (!timestamp) return '...';
-      let date: Date;
-      if (typeof timestamp === 'string') {
-        date = new Date(timestamp);
-      } else if ('toDate' in timestamp) { // Firestore Timestamp
-        date = timestamp.toDate();
-      } else {
-        date = timestamp as Date;
-      }
-      return date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'});
-    }
-
 
     return (
         <>
@@ -304,7 +300,7 @@ export default function LogActivityPage() {
                                         {getActivityTitle(activity)}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                        {toShortLocaleString(activity.timestamp)} - {' '}
+                                        {formatSafeDate(safeToDate(activity.timestamp), { dateStyle: 'short', timeStyle: 'short'})} - {' '}
                                         <span className="font-medium">
                                             {getOfficerText(activity)}
                                         </span>
@@ -316,7 +312,7 @@ export default function LogActivityPage() {
                             </div>
 
                             <div className="flex items-center gap-1">
-                               {activity.type === 'engine' && logId && (
+                               {activity.type === 'engine' && logId && associatedLog && (
                                 <>
                                     <Dialog>
                                         <DialogTrigger asChild>

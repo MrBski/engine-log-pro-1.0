@@ -24,6 +24,16 @@ function formatDuration(seconds: number) {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
+const safeToDate = (timestamp: Timestamp | Date | string | undefined): Date | null => {
+    if (!timestamp) return null;
+    if (timestamp instanceof Date) return timestamp;
+    if (typeof timestamp === 'string') return new Date(timestamp);
+    if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+      return timestamp.toDate();
+    }
+    return null;
+};
+
 export default function DashboardPage() {
   const { inventory = [], logs = [], settings, updateSettings, addActivityLog, loading } = useData();
   const [mounted, setMounted] = useState(false);
@@ -96,17 +106,6 @@ export default function DashboardPage() {
      }
   };
 
-  const toDate = (timestamp: Timestamp | Date | string | undefined): Date => {
-    if (!timestamp) return new Date();
-    if (typeof timestamp === 'string') {
-        return new Date(timestamp);
-    }
-    if ('toDate' in timestamp) { // Firestore Timestamp
-        return timestamp.toDate();
-    }
-    return timestamp as Date;
-  }
-
   const lowStockItems = inventory.filter(item => item.stock <= item.lowStockThreshold);
   const latestLog = logs.length > 0 ? logs[0] : null; // Already sorted by Firestore query
   const recentLogs = logs.slice(0, 5);
@@ -117,7 +116,7 @@ export default function DashboardPage() {
   }
 
   const chartData = logs.slice(0, 7).reverse().map(log => ({
-    date: toDate(log.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    date: safeToDate(log.timestamp)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) || '',
     rpm: parseFloat(log.readings.find(r => r.key.includes('RPM'))?.value || '0'),
     fuel: parseFloat(log.readings.find(r => r.key.includes('Fuel'))?.value || '0'),
   }));
@@ -223,15 +222,18 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentLogs.map(log => (
-                  <TableRow key={log.id}>
-                    <TableCell>{toDate(log.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'})}</TableCell>
-                    <TableCell>{log.officer}</TableCell>
-                    <TableCell>{getReading(log, 'RPM')}</TableCell>
-                    <TableCell>{getReading(log, 'Fuel')}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{log.notes}</TableCell>
-                  </TableRow>
-                ))}
+                {recentLogs.map(log => {
+                  const logDate = safeToDate(log.timestamp);
+                  return (
+                    <TableRow key={log.id}>
+                      <TableCell>{logDate ? logDate.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'}) : '...'}</TableCell>
+                      <TableCell>{log.officer}</TableCell>
+                      <TableCell>{getReading(log, 'RPM')}</TableCell>
+                      <TableCell>{getReading(log, 'Fuel')}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{log.notes}</TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </CardContent>
