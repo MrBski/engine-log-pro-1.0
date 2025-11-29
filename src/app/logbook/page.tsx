@@ -141,19 +141,27 @@ export default function LogbookPage() {
   const watchedSections = form.watch("sections");
 
   useEffect(() => {
-    const onDutyBeforeStr = watchedSections.find(s => s.title === 'Daily Tank Before On Duty')?.readings.find(r => r.key === 'Before')?.value;
-    const dailyTankBeforeStr = watchedSections.find(s => s.title === 'Daily Tank')?.readings.find(r => r.key === 'Before')?.value;
+    const onDutyBeforeValue = watchedSections.find(s => s.title === 'Daily Tank Before On Duty')?.readings.find(r => r.key === 'Before')?.value;
+    const dailyTankBeforeValue = watchedSections.find(s => s.title === 'Daily Tank')?.readings.find(r => r.key === 'Before')?.value;
 
-    const onDutyBefore = parseFloat(onDutyBeforeStr || '0');
-    const dailyTankBefore = parseFloat(dailyTankBeforeStr || '0');
+    const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
+    const dailyTankBefore = parseFloat(dailyTankBeforeValue || '0');
 
-    if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
+    if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore) && onDutyBefore > 0 && dailyTankBefore > 0) {
         const used4Hours = (onDutyBefore - dailyTankBefore) * 21;
         const othersSectionIndex = watchedSections.findIndex(s => s.title === 'Others');
         if (othersSectionIndex !== -1) {
             const used4HoursReadingIndex = watchedSections[othersSectionIndex].readings.findIndex(r => r.key === 'USED 4 Hours');
             if (used4HoursReadingIndex !== -1) {
-                form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: true });
+                form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toFixed(2), { shouldValidate: true });
+            }
+        }
+    } else {
+        const othersSectionIndex = watchedSections.findIndex(s => s.title === 'Others');
+        if (othersSectionIndex !== -1) {
+            const used4HoursReadingIndex = watchedSections[othersSectionIndex].readings.findIndex(r => r.key === 'USED 4 Hours');
+            if (used4HoursReadingIndex !== -1) {
+                form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, '0', { shouldValidate: true });
             }
         }
     }
@@ -321,7 +329,5 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
 
     
