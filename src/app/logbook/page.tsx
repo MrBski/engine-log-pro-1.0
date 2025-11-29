@@ -78,19 +78,37 @@ export const initialSections: LogFormData['sections'] = [
       ],
     },
     {
+        title: 'Daily Tank',
+        readings: [
+            { key: 'Sounding', value: '', unit: 'cm' },
+            { key: 'Volume', value: '', unit: 'L' },
+        ],
+    },
+    {
       title: 'Flowmeter',
       readings: [
         { key: 'Before', value: '', unit: 'L' },
         { key: 'After', value: '', unit: 'L' },
       ],
     },
+    {
+        title: 'Others',
+        readings: [
+            { key: 'Running Hours M/E P', value: '', unit: 'hrs' },
+            { key: 'Running Hours M/E S', value: '', unit: 'hrs' },
+            { key: 'Running Hours GEN 1', value: '', unit: 'hrs' },
+            { key: 'Running Hours GEN 2', value: '', unit: 'hrs' },
+        ]
+    }
 ];
 
 const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
     'M.E Starboard': 'bg-green-600',
     'Generator': 'bg-sky-600',
+    'Daily Tank': 'bg-purple-600',
     'Flowmeter': 'bg-amber-600',
+    'Others': 'bg-slate-500'
 };
 
 export default function LogbookPage() {
