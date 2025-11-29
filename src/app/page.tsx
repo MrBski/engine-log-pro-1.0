@@ -2,24 +2,90 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertCircle, Clock, Fuel, Gauge } from "lucide-react";
+import { AlertCircle, Clock, Fuel, Gauge, Power, PowerOff, RotateCcw } from "lucide-react";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type InventoryItem, type EngineLog, type AppSettings } from "@/lib/data";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
 import { AppHeader } from "@/components/app-header";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+
+function formatDuration(seconds: number) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
 
 export default function DashboardPage() {
   const [inventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
   const [logs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
-  const [settings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
+  const [settings, setSettings] = useLocalStorage<AppSettings>('settings', getInitialData().settings);
   const [mounted, setMounted] = useState(false);
+  const { toast } = useToast();
+
+  const [currentGeneratorRHS, setCurrentGeneratorRHS] = useState(settings.generatorRunningHours || 0);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    let interval: NodeJS.Timeout;
+    if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
+      interval = setInterval(() => {
+        const elapsedSeconds = (Date.now() - (settings.generatorStartTime ?? 0)) / 1000;
+        setCurrentGeneratorRHS((settings.generatorRunningHours || 0) + elapsedSeconds / 3600);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [settings.generatorStatus, settings.generatorStartTime, settings.generatorRunningHours]);
+
+  useEffect(() => {
+    // This effect ensures the display is updated if settings change from another tab
+    setCurrentGeneratorRHS(settings.generatorRunningHours || 0);
+  }, [settings.generatorRunningHours]);
+
+
+  const handleGeneratorToggle = () => {
+    if (settings.generatorStatus === 'on') {
+      // Turning OFF
+      const endTime = Date.now();
+      const startTime = settings.generatorStartTime || endTime;
+      const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
+      setSettings(prev => {
+          const newTotal = (prev.generatorRunningHours || 0) + elapsedHours;
+          return {
+              ...prev,
+              generatorStatus: 'off',
+              generatorStartTime: null,
+              generatorRunningHours: newTotal,
+          }
+      });
+      toast({ title: "Generator Off", description: "Running hours have been updated." });
+    } else {
+      // Turning ON
+      setSettings(prev => ({
+        ...prev,
+        generatorStatus: 'on',
+        generatorStartTime: Date.now(),
+      }));
+      toast({ title: "Generator On", description: "Running hours tracking started." });
+    }
+  };
+
+  const handleGeneratorReset = () => {
+     setSettings(prev => ({
+        ...prev,
+        generatorRunningHours: 0,
+        generatorStartTime: prev.generatorStatus === 'on' ? Date.now() : null,
+      }));
+      setCurrentGeneratorRHS(0);
+      toast({ title: "Generator RHS Reset", description: "Running hours have been reset to 0." });
+  };
+
 
   const lowStockItems = inventory.filter(item => item.stock <= item.lowStockThreshold);
   const latestLog = logs.length > 0 ? logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0] : null;
@@ -56,24 +122,59 @@ export default function DashboardPage() {
     );
   }
 
+  const getTotalElapsedSeconds = () => {
+    if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
+      const elapsed = (Date.now() - settings.generatorStartTime) / 1000;
+      return (settings.generatorRunningHours || 0) * 3600 + elapsed;
+    }
+    return (settings.generatorRunningHours || 0) * 3600;
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <AppHeader />
       {/* Stat Cards */}
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="flex items-center p-4">
-          <Clock className="h-6 w-6 text-muted-foreground mr-4" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
-            <p className="text-xl font-bold">{(settings.runningHours || 0).toLocaleString()} hrs</p>
+        <Card className="flex flex-col p-4 justify-between">
+          <div className="flex items-center">
+            <Clock className="h-6 w-6 text-muted-foreground mr-4" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
+              <p className="text-xl font-bold">{(settings.runningHours || 0).toLocaleString()} hrs</p>
+            </div>
           </div>
         </Card>
-        <Card className="flex items-center p-4">
-          <Clock className="h-6 w-6 text-muted-foreground mr-4" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
-            <p className="text-xl font-bold">{(settings.generatorRunningHours || 0).toLocaleString()} hrs</p>
-          </div>
+        <Card className="flex flex-col p-4 justify-between">
+            <div>
+              <div className="flex items-center">
+                <Clock className="h-6 w-6 text-muted-foreground mr-4" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
+                   <p className="text-xl font-bold">{formatDuration(getTotalElapsedSeconds())}</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-2">
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="icon" className="h-8 w-8"><RotateCcw /></Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader><AlertDialogTitle>Reset Generator RHS?</AlertDialogTitle><AlertDialogDescription>This will reset the running hours to 0. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleGeneratorReset}>Reset</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <Button 
+                    size="icon" 
+                    className={cn("h-8 w-8", settings.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-muted-foreground hover:bg-slate-500")}
+                    onClick={handleGeneratorToggle}
+                >
+                    {settings.generatorStatus === 'on' ? <PowerOff /> : <Power />}
+                </Button>
+            </div>
         </Card>
         <Card className="flex items-center p-4">
           <Fuel className="h-6 w-6 text-muted-foreground mr-4" />

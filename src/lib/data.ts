@@ -47,6 +47,8 @@ export type AppSettings = {
   officers: string[];
   runningHours: number;
   generatorRunningHours: number;
+  generatorStatus: 'on' | 'off';
+  generatorStartTime: number | null;
 };
 
 export const getInitialData = () => ({
@@ -55,6 +57,8 @@ export const getInitialData = () => ({
     officers: ['Chief Engineer', '2nd Engineer', 'Oiler'],
     runningHours: 1208,
     generatorRunningHours: 450,
+    generatorStatus: 'off' as 'on' | 'off',
+    generatorStartTime: null,
   },
   inventory: [
     { id: 'item-1', name: 'Lube Oil Filter', category: 'main-engine', stock: 10, unit: 'pcs', lowStockThreshold: 2 },

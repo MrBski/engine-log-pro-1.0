@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Trash2, UserPlus, BookCopy } from 'lucide-react';
 import { AppHeader } from '@/components/app-header';
 import Link from 'next/link';
+import { useEffect } from 'react';
 
 const settingsSchema = z.object({
   shipName: z.string().min(1, 'Ship name is required.'),
@@ -37,6 +38,15 @@ export default function SettingsPage() {
       generatorRunningHours: settings.generatorRunningHours || 0,
     },
   });
+  
+  useEffect(() => {
+    settingsForm.reset({
+      shipName: settings.shipName,
+      runningHours: settings.runningHours || 0,
+      generatorRunningHours: settings.generatorRunningHours || 0,
+    });
+  }, [settings, settingsForm]);
+
 
   const newOfficerForm = useForm<z.infer<typeof newOfficerSchema>>({
     resolver: zodResolver(newOfficerSchema),

@@ -170,7 +170,6 @@ export default function LogbookPage() {
     setSettings(prevSettings => ({
       ...prevSettings,
       runningHours: (prevSettings.runningHours || 0) + 4,
-      generatorRunningHours: (prevSettings.generatorRunningHours || 0) + 4,
     }));
 
     const newActivity: ActivityLog = {
