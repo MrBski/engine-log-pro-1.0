@@ -67,6 +67,11 @@ export default function LogbookPage() {
     resolver: zodResolver(logSchema),
   });
   
+  const { fields: sectionFields } = useFieldArray({
+    control: form.control,
+    name: "sections",
+  });
+
   useEffect(() => {
     if (isClient) {
       const dynamicDefaultValues = {
@@ -87,7 +92,7 @@ export default function LogbookPage() {
   const watchedSections = form.watch('sections');
 
   useEffect(() => {
-    if (!watchedSections) return;
+    if (!watchedSections || watchedSections.length === 0) return;
 
     let onDutyBeforeValue: string | undefined;
     let dailyTankBeforeValue: string | undefined;
@@ -97,7 +102,7 @@ export default function LogbookPage() {
     let onDutyBeforeReadingIndex: number | undefined;
     let dailyTankBeforeSectionIndex: number | undefined;
     let dailyTankBeforeReadingIndex: number | undefined;
-
+    
     watchedSections.forEach((section, sIdx) => {
         section.readings.forEach((reading, rIdx) => {
             if (reading.id === 'other_used') {
@@ -234,11 +239,6 @@ export default function LogbookPage() {
     );
   }
   
-  const { fields: sectionFields } = useFieldArray({
-    control: form.control,
-    name: "sections",
-  });
-
   const findReadingById = (id: string) => {
     for (const section of logbookSections) {
       for (const reading of section.readings) {
@@ -368,7 +368,3 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
-
-    
