@@ -94,10 +94,8 @@ export const initialSections: LogFormData['sections'] = [
     {
         title: 'Others',
         readings: [
-            { key: 'Running Hours M/E P', value: '', unit: 'hrs' },
-            { key: 'Running Hours M/E S', value: '', unit: 'hrs' },
-            { key: 'Running Hours GEN 1', value: '', unit: 'hrs' },
-            { key: 'Running Hours GEN 2', value: '', unit: 'hrs' },
+            { key: 'RoB', value: '', unit: 'L' },
+            { key: 'USED 4 Hours', value: '', unit: 'L' },
         ]
     }
 ];
@@ -153,6 +151,8 @@ export default function LogbookPage() {
     const newActivity: ActivityLog = {
         ...newLog,
         type: 'engine',
+        name: 'Engine Log Entry', // Added for consistency
+        category: 'main-engine' // Added for consistency
     };
     setActivityLog(prev => [newActivity, ...prev]);
 
@@ -291,3 +291,5 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
