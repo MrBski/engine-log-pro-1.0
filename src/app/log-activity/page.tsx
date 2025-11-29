@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useState, useEffect } from "react";
 import * as htmlToImage from 'html-to-image';
 
 const sectionColors: { [key: string]: string } = {
@@ -190,6 +190,11 @@ export default function LogActivityPage() {
     const [logs, setLogs] = useLocalStorage<EngineLog[]>('logs', getInitialData().logs);
     const [logbookSections] = useLocalStorage<LogSection[]>('logbookSections', getInitialData().logbookSections);
     const { toast } = useToast();
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const handleDeleteLog = (logId: string) => {
         const logToDelete = logs.find(log => log.id === logId);
@@ -233,7 +238,7 @@ export default function LogActivityPage() {
                                     {activity.type === 'engine' ? 'Engine Log Entry' : `"${activity.name}" updated`}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                    {new Date(activity.timestamp).toLocaleString()} - {' '}
+                                    {isMounted ? new Date(activity.timestamp).toLocaleString() : '...'} - {' '}
                                     <span className="font-medium">
                                         {activity.type === 'engine' ? `by ${activity.officer}` : categoryMapping[activity.category || 'other']}
                                     </span>
