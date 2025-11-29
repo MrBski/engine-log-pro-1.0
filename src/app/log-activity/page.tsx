@@ -5,7 +5,7 @@ import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
-import { Trash2, History, FileJson, Archive, Eye } from "lucide-react";
+import { Trash2, History, FileJson, Archive, Eye, Share2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { useRef, useCallback } from "react";
+import * as htmlToImage from 'html-to-image';
 
 const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
@@ -31,6 +33,49 @@ const sectionColors: { [key: string]: string } = {
 };
 
 function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSections: LogSection[] }) {
+    const { toast } = useToast();
+    const printRef = useRef<HTMLDivElement>(null);
+
+    const handleShare = useCallback(async () => {
+        if (!printRef.current) {
+            return;
+        }
+
+        try {
+            const dataUrl = await htmlToImage.toPng(printRef.current, {
+                quality: 0.95,
+                backgroundColor: 'hsl(var(--background))',
+                 // Wait for images to load
+                skipAutoScale: false,
+                pixelRatio: 2
+            });
+
+            const blob = await (await fetch(dataUrl)).blob();
+            const file = new File([blob], `engine-log-${log.id}.png`, { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Engine Log',
+                    text: `Engine Log Entry for ${new Date(log.timestamp).toLocaleString()}`,
+                });
+            } else {
+                 // Fallback for browsers that don't support sharing files
+                const link = document.createElement('a');
+                link.download = `engine-log-${log.id}.png`;
+                link.href = dataUrl;
+                link.click();
+            }
+        } catch (error) {
+            console.error('oops, something went wrong!', error);
+            toast({
+                variant: 'destructive',
+                title: 'Failed to Share',
+                description: 'Could not generate or share the log image.'
+            });
+        }
+    }, [log.id, log.timestamp, toast]);
+
 
     const getReadingsForSection = (title: string) => {
         return log.readings.filter(r => r.key.startsWith(title));
@@ -57,7 +102,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
 
     const robValue = robReading && robReading.value ? parseFloat(robReading.value) : 0;
     const used4HoursValue = used4HoursReading && used4HoursReading.value ? parseFloat(used4HoursReading.value) : 0;
-    const hourlyConsumption = used4HoursValue / 4;
+    const hourlyConsumption = used4HoursValue > 0 ? used4HoursValue / 4 : 0;
     
     const robHour1 = robValue - hourlyConsumption;
     const robHour2 = robHour1 - hourlyConsumption;
@@ -72,7 +117,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
                 <DialogTitle>Engine Log Preview</DialogTitle>
             </DialogHeader>
             <div className="max-h-[80vh] overflow-y-auto">
-                <div className="space-y-2 bg-card p-2 rounded-lg text-sm">
+                <div ref={printRef} className="space-y-2 bg-card p-2 rounded-lg text-sm">
                     <div className="font-bold text-center text-base h-8 flex items-center justify-center bg-muted/50 rounded-md">
                         {new Date(log.timestamp).toLocaleString()}
                     </div>
@@ -128,8 +173,12 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
                 </div>
             </div>
             <DialogFooter>
+                <Button variant="outline" onClick={handleShare}>
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Share
+                </Button>
                 <DialogClose asChild>
-                    <Button variant="outline">Close</Button>
+                    <Button variant="secondary">Close</Button>
                 </DialogClose>
             </DialogFooter>
         </DialogContent>
