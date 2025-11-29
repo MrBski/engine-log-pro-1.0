@@ -26,7 +26,8 @@ const sectionColors: { [key: string]: string } = {
     'Generator': 'bg-sky-600',
     'Daily Tank': 'bg-purple-600',
     'Flowmeter': 'bg-amber-600',
-    'Others': 'bg-slate-500'
+    'Others': 'bg-slate-500',
+    'Fuel Consumption': 'bg-orange-600',
 };
 
 function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSections: LogSection[] }) {
@@ -50,6 +51,16 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
             </div>
         </div>
     );
+    
+    const robReading = log.readings.find(r => r.id === 'other_rob');
+    const used4HoursReading = log.readings.find(r => r.id === 'other_used');
+
+    const robValue = robReading && robReading.value ? parseFloat(robReading.value) : 0;
+    const used4HoursValue = used4HoursReading && used4HoursReading.value ? parseFloat(used4HoursReading.value) : 0;
+    const hourlyConsumption = used4HoursValue / 4;
+    const finalRob = robValue - used4HoursValue;
+
+    const hasConsumptionData = robReading && used4HoursReading;
 
     return (
         <DialogContent className="max-w-3xl">
@@ -70,6 +81,29 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
                                 {section.readings.map(renderReading)}
                             </div>
                         ))}
+                         {hasConsumptionData && (
+                            <div className="space-y-1 p-1 border border-muted-foreground/50 rounded-sm">
+                                <h3 className={cn("font-bold text-center p-1.5 my-2 rounded-md text-primary-foreground text-xs", sectionColors['Fuel Consumption'] || 'bg-gray-500')}>
+                                    Fuel Consumption
+                                </h3>
+                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">ROB Awal</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robValue} <span className="text-muted-foreground/50">L</span></div>
+                                </div>
+                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Pemakaian (4 Jam)</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{used4HoursValue} <span className="text-muted-foreground/50">L</span></div>
+                                </div>
+                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Konsumsi per Jam</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{hourlyConsumption.toFixed(2)} <span className="text-muted-foreground/50">L/hr</span></div>
+                                </div>
+                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                    <label className="w-1/2 font-bold text-xs text-foreground">ROB Akhir</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-bold">{finalRob} <span className="text-muted-foreground/50">L</span></div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     
                     <div className="space-y-1 pt-2">
