@@ -42,7 +42,7 @@ const toLocaleString = (timestamp: Timestamp | string | undefined) => {
     return timestamp.toDate().toLocaleString();
 }
 
-function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSections: LogSection[] }) {
+function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
     const { toast } = useToast();
     const printRef = useRef<HTMLDivElement>(null);
 
@@ -60,17 +60,17 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
             });
 
             const blob = await (await fetch(dataUrl)).blob();
-            const file = new File([blob], `engine-log-${log.id}.png`, { type: blob.type });
+            const file = new File([blob], `engine-log-${log?.id}.png`, { type: blob.type });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({
                     files: [file],
                     title: 'Engine Log',
-                    text: `Engine Log Entry for ${toLocaleString(log.timestamp)}`,
+                    text: `Engine Log Entry for ${toLocaleString(log?.timestamp)}`,
                 });
             } else {
                 const link = document.createElement('a');
-                link.download = `engine-log-${log.id}.png`;
+                link.download = `engine-log-${log?.id}.png`;
                 link.href = dataUrl;
                 link.click();
             }
@@ -84,6 +84,19 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
         }
     }, [log, toast]);
 
+    if (!log) {
+        return (
+             <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Error</DialogTitle>
+                </DialogHeader>
+                <p>Log data not found or is still syncing. Please try again in a moment.</p>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="secondary">Close</Button></DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        )
+    }
 
     const getReadingsForSection = (title: string) => {
         return log.readings.filter(r => r.key.startsWith(title));
@@ -270,6 +283,8 @@ export default function LogActivityPage() {
                 {sortedActivities.map(activity => {
                     const notes = getNotes(activity);
                     const logId = activity.type === 'engine' ? activity.logId : null;
+                    const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
+                    
                     return (
                         <Card key={activity.id} className="flex items-center justify-between p-3">
                             <div className="flex items-center gap-3">
@@ -297,7 +312,7 @@ export default function LogActivityPage() {
                                         <DialogTrigger asChild>
                                             <Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button>
                                         </DialogTrigger>
-                                        <LogEntryCard log={logs.find(l => l.id === logId) as EngineLog} logbookSections={logbookSections as LogSection[]} />
+                                        <LogEntryCard log={associatedLog} logbookSections={logbookSections as LogSection[]} />
                                     </Dialog>
 
                                     <AlertDialog>
@@ -330,3 +345,5 @@ export default function LogActivityPage() {
         </>
     )
 }
+
+    

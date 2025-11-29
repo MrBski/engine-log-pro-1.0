@@ -69,7 +69,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     // This effect initializes the database with default data if it's empty
     useEffect(() => {
         // Only run this if we have a user and all initial loading states are false
-        if (db && user && !isAuthLoading && settings === undefined && logbookData === undefined) {
+        if (db && user && !loadingSettings && settings === undefined && !loadingLogbook && logbookData === undefined) {
              const initializeData = async () => {
                 const initial = getInitialData();
                 const batch = writeBatch(db);
@@ -95,7 +95,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             const timer = setTimeout(initializeData, 1500);
             return () => clearTimeout(timer);
         }
-    }, [db, user, isAuthLoading, settings, logbookData, settingsRef, logbookRef]);
+    }, [db, user, loadingSettings, settings, loadingLogbook, logbookData, settingsRef, logbookRef]);
 
 
     // --- Functions ---
@@ -173,19 +173,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const loading = isAuthLoading || (!!user && (loadingSettings || loadingLogs || loadingInv || loadingActivity || loadingLogbook));
     
     const initialData = getInitialData();
-    // Provide initial data if user is not logged in or data is loading
+    // Provide initial data only if user is not logged in or data is still loading
+    // Once a hook resolves, its data (even if it's an empty array) should be used.
     const data: DataContextType = {
-        settings: settings || initialData.settings,
+        settings: !user || loadingSettings ? initialData.settings : settings,
         updateSettings,
-        logs: (logs as EngineLog[] | undefined) || initialData.logs,
+        logs: !user || loadingLogs ? initialData.logs : (logs as EngineLog[]),
         addLog,
         deleteLog,
-        inventory: (inventory as InventoryItem[] | undefined) || initialData.inventory,
+        inventory: !user || loadingInv ? initialData.inventory : (inventory as InventoryItem[]),
         addInventoryItem,
         updateInventoryItem,
-        activityLog: (activityLog as ActivityLog[] | undefined) || initialData.activityLog,
+        activityLog: !user || loadingActivity ? initialData.activityLog : (activityLog as ActivityLog[]),
         addActivityLog,
-        logbookSections: (logbookData?.sections as LogSection[] | undefined) || initialData.logbookSections,
+        logbookSections: !user || loadingLogbook ? initialData.logbookSections : (logbookData?.sections as LogSection[]),
         updateLogbookSections,
         loading,
     }
@@ -206,3 +207,5 @@ export const useData = () => {
   }
   return context;
 };
+
+    
