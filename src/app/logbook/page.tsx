@@ -10,12 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getInitialData, type EngineLog, type AppSettings, type ActivityLog, type LogSection } from '@/lib/data';
+import { type EngineLog, type ActivityLog } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { AppHeader } from '@/components/app-header';
 import { format } from 'date-fns';
 import { Icons } from '@/components/icons';
 import Link from 'next/link';
+import { useData } from '@/hooks/use-data';
 
 const readingSchema = z.object({
   id: z.string(),
@@ -50,10 +51,7 @@ const sectionColors: { [key: string]: string } = {
 };
 
 export default function LogbookPage() {
-  const [logs, setLogs] = useState<EngineLog[]>(getInitialData().logs);
-  const [activityLog, setActivityLog] = useState<ActivityLog[]>(getInitialData().activityLog);
-  const [settings, setSettings] = useState<AppSettings>(getInitialData().settings);
-  const [logbookSections] = useState<LogSection[]>(getInitialData().logbookSections);
+  const { logs, addLog, activityLog, addActivityLog, settings, setSettings, logbookSections } = useData();
   const { toast } = useToast();
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -163,7 +161,7 @@ export default function LogbookPage() {
       ),
       notes: values.condition || 'No conditions noted.',
     };
-    setLogs(prevLogs => [newLog, ...prevLogs]);
+    addLog(newLog);
 
     // Update Running Hours
     setSettings(prevSettings => ({
@@ -177,7 +175,7 @@ export default function LogbookPage() {
         name: 'Engine Log Entry', 
         category: 'main-engine' 
     };
-    setActivityLog(prev => [newActivity, ...prev]);
+    addActivityLog(newActivity);
 
     toast({ title: "Success", description: "New engine log has been recorded." });
     
@@ -381,5 +379,3 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    

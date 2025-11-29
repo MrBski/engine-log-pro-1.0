@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from 'react';
-import { getInitialData, type LogSection, type Reading } from '@/lib/data';
+import { type LogSection, type Reading } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,12 +17,13 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { useData } from '@/hooks/use-data';
 
 const readingSchema = z.object({
   key: z.string().min(1, 'Reading name is required'),
@@ -34,7 +35,7 @@ const sectionSchema = z.object({
 });
 
 export default function LogbookSettingsPage() {
-  const [logbookSections, setLogbookSections] = useState<LogSection[]>(getInitialData().logbookSections);
+  const { logbookSections, setLogbookSections } = useData();
   const { toast } = useToast();
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
 
@@ -232,5 +233,3 @@ export default function LogbookSettingsPage() {
     </div>
   );
 }
-
-    

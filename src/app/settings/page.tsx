@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { getInitialData, type AppSettings } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { Icons } from '@/components/icons';
 import { AppHeader } from '@/components/app-header';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useData } from '@/hooks/use-data';
 
 const settingsSchema = z.object({
   shipName: z.string().min(1, 'Ship name is required.'),
@@ -26,7 +26,7 @@ const newOfficerSchema = z.object({
 });
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<AppSettings>(getInitialData().settings);
+  const { settings, setSettings } = useData();
   const { toast } = useToast();
 
   const settingsForm = useForm<z.infer<typeof settingsSchema>>({
@@ -177,5 +177,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    

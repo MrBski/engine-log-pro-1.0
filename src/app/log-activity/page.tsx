@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getInitialData, type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
+import { type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
 import { Icons } from "@/components/icons";
@@ -21,6 +21,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn } from "@/lib/utils";
 import { useRef, useCallback } from "react";
 import * as htmlToImage from 'html-to-image';
+import { useData } from "@/hooks/use-data";
 
 const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
@@ -186,9 +187,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
 }
 
 export default function LogActivityPage() {
-    const [activityLog, setActivityLog] = useState<ActivityLog[]>(getInitialData().activityLog);
-    const [logs, setLogs] = useState<EngineLog[]>(getInitialData().logs);
-    const [logbookSections] = useState<LogSection[]>(getInitialData().logbookSections);
+    const { activityLog, setActivityLog, logs, setLogs, logbookSections } = useData();
     const { toast } = useToast();
     const [isMounted, setIsMounted] = useState(false);
 
@@ -324,5 +323,3 @@ export default function LogActivityPage() {
         </>
     )
 }
-
-    

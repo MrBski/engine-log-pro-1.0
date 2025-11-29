@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { getInitialData, type InventoryItem, type InventoryCategory, type ActivityLog } from '@/lib/data';
+import { type InventoryItem, type InventoryCategory, type ActivityLog } from '@/lib/data';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { AppHeader } from '@/components/app-header';
+import { useData } from '@/hooks/use-data';
 
 const itemSchema = z.object({
   name: z.string().min(1, "Item name is required."),
@@ -42,8 +43,7 @@ const useItemSchema = z.object({
 });
 
 export default function InventoryPage() {
-  const [inventory, setInventory] = useState<InventoryItem[]>(getInitialData().inventory);
-  const [activityLog, setActivityLog] = useState<ActivityLog[]>(getInitialData().activityLog);
+  const { inventory, setInventory, addActivityLog } = useData();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -70,7 +70,7 @@ export default function InventoryPage() {
       notes: `Added ${newItem.stock} ${newItem.unit} to stock.`,
       category: newItem.category,
     };
-    setActivityLog(prev => [newActivity, ...prev]);
+    addActivityLog(newActivity);
 
     toast({ title: "Success", description: `${newItem.name} added to inventory.` });
     addForm.reset();
@@ -97,7 +97,7 @@ export default function InventoryPage() {
       notes: `Used ${values.amount} ${itemToUse.unit}.`,
       category: itemToUse.category,
     };
-    setActivityLog(prev => [newActivity, ...prev]);
+    addActivityLog(newActivity);
     
     toast({ title: "Success", description: `${values.amount} ${itemToUse.unit} of ${itemToUse.name} used.` });
     useFormInstance.reset();
@@ -218,5 +218,3 @@ export default function InventoryPage() {
     </>
   );
 }
-
-    

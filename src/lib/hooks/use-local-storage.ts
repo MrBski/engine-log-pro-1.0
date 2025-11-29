@@ -1,29 +1,18 @@
 
 "use client"
 
-import { useState, useEffect, useCallback } from 'react';
-
-// This custom hook is being removed in favor of a direct state management
-// approach in each component. This is a temporary step to prepare for 
-// migrating the application's state management to Firebase Firestore.
-// By centralizing state within the components, we can more easily replace
-// it with Firestore-backed hooks like `useCollection` and `useDoc` later on,
-// enabling real-time data synchronization and offline capabilities.
+// This hook is intentionally left blank.
+// The application's state management has been centralized into a React Context 
+// (`src/hooks/use-data.tsx`) to prepare for migration to Firebase Firestore.
+// All data is now managed within the `DataProvider` component, which acts as a 
+// single source of truth. This approach simplifies the upcoming transition 
+// to Firestore-backed hooks like `useCollection` and `useDoc`, which will 
+// enable real-time data synchronization and robust offline capabilities.
+// This file is kept for archival purposes and can be safely removed later.
 
 export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
-  const [storedValue, setStoredValue] = useState<T>(initialValue);
-
-  useEffect(() => {
-    // This hook will no longer interact with localStorage.
-    // The state will be component-local until Firestore is integrated.
-  }, [key]);
-
-  const setValue = (value: T | ((val: T) => T)) => {
-    const valueToStore = value instanceof Function ? value(storedValue) : value;
-    setStoredValue(valueToStore);
-  };
-  
-  return [storedValue, setValue];
+    // This function no longer interacts with localStorage.
+    // It returns a state that is not persisted.
+    const [state, setState] = require('react').useState(initialValue);
+    return [state, setState];
 }
-
-    

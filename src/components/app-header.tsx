@@ -1,19 +1,19 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { SyncStatus } from "@/components/sync-status";
 import { usePathname } from "next/navigation";
-import { getInitialData, type AppSettings } from '@/lib/data';
 import { Icons } from './icons';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from './ui/button';
+import { useData } from '@/hooks/use-data';
 
 
 export function AppHeader() {
   const pathname = usePathname();
-  const [settings] = useState<AppSettings>(getInitialData().settings);
+  const { settings } = useData();
   const { user, logout } = useAuth();
 
 
@@ -66,5 +66,3 @@ export function AppHeader() {
     </header>
   );
 }
-
-    

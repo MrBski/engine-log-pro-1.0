@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Icons } from "@/components/icons";
-import { getInitialData, type InventoryItem, type EngineLog, type AppSettings, type ActivityLog } from "@/lib/data";
+import { type InventoryItem, type EngineLog, type AppSettings, type ActivityLog } from "@/lib/data";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
 import { AppHeader } from "@/components/app-header";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
+import { useData } from "@/hooks/use-data";
 
 function formatDuration(seconds: number) {
     const h = Math.floor(seconds / 3600);
@@ -23,10 +24,7 @@ function formatDuration(seconds: number) {
 }
 
 export default function DashboardPage() {
-  const [inventory, setInventory] = useState<InventoryItem[]>(getInitialData().inventory);
-  const [logs, setLogs] = useState<EngineLog[]>(getInitialData().logs);
-  const [settings, setSettings] = useState<AppSettings>(getInitialData().settings);
-  const [activityLog, setActivityLog] = useState<ActivityLog[]>(getInitialData().activityLog);
+  const { inventory, logs, settings, setSettings, activityLog, addActivityLog } = useData();
   const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -59,7 +57,7 @@ export default function DashboardPage() {
       notes,
       officer: user?.name || 'System',
     };
-    setActivityLog(prev => [newActivity, ...prev]);
+    addActivityLog(newActivity);
   };
 
 
@@ -272,5 +270,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
