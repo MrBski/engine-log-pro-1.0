@@ -92,7 +92,7 @@ export const initialSections: LogFormData['sections'] = [
       ],
     },
     {
-      title: 'On Duty',
+      title: 'Daily Tank Before On Duty',
       readings: [
         { key: 'Before', value: '', unit: 'L' },
       ],
@@ -112,7 +112,7 @@ const sectionColors: { [key: string]: string } = {
     'Generator': 'bg-sky-600',
     'Daily Tank': 'bg-purple-600',
     'Flowmeter': 'bg-amber-600',
-    'On Duty': 'bg-cyan-600',
+    'Daily Tank Before On Duty': 'bg-cyan-600',
     'Others': 'bg-slate-500'
 };
 
@@ -141,7 +141,7 @@ export default function LogbookPage() {
   const watchedSections = form.watch("sections");
 
   useEffect(() => {
-    const onDutyBeforeStr = watchedSections.find(s => s.title === 'On Duty')?.readings.find(r => r.key === 'Before')?.value;
+    const onDutyBeforeStr = watchedSections.find(s => s.title === 'Daily Tank Before On Duty')?.readings.find(r => r.key === 'Before')?.value;
     const dailyTankBeforeStr = watchedSections.find(s => s.title === 'Daily Tank')?.readings.find(r => r.key === 'Before')?.value;
 
     const onDutyBefore = parseFloat(onDutyBeforeStr || '0');
@@ -321,5 +321,7 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
 
     
