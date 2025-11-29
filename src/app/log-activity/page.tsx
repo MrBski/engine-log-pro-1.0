@@ -58,9 +58,13 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
     const robValue = robReading && robReading.value ? parseFloat(robReading.value) : 0;
     const used4HoursValue = used4HoursReading && used4HoursReading.value ? parseFloat(used4HoursReading.value) : 0;
     const hourlyConsumption = used4HoursValue / 4;
-    const finalRob = robValue - used4HoursValue;
+    
+    const robHour1 = robValue - hourlyConsumption;
+    const robHour2 = robHour1 - hourlyConsumption;
+    const robHour3 = robHour2 - hourlyConsumption;
+    const robHour4 = robHour3 - hourlyConsumption;
 
-    const hasConsumptionData = robReading && used4HoursReading;
+    const hasConsumptionData = robReading && used4HoursReading && robValue > 0 && used4HoursValue > 0;
 
     return (
         <DialogContent className="max-w-3xl">
@@ -84,23 +88,27 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog, logbookSection
                          {hasConsumptionData && (
                             <div className="space-y-1 p-1 border border-muted-foreground/50 rounded-sm">
                                 <h3 className={cn("font-bold text-center p-1.5 my-2 rounded-md text-primary-foreground text-xs", sectionColors['Fuel Consumption'] || 'bg-gray-500')}>
-                                    Fuel Consumption
+                                    USED / HOUR (-{hourlyConsumption.toFixed(2)} L/hr)
                                 </h3>
                                 <div className="flex items-center border-b border-white/5 py-0.5">
                                     <label className="w-1/2 font-medium text-xs text-muted-foreground">ROB Awal</label>
-                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robValue} <span className="text-muted-foreground/50">L</span></div>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robValue.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
                                 </div>
                                 <div className="flex items-center border-b border-white/5 py-0.5">
-                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Pemakaian (4 Jam)</label>
-                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{used4HoursValue} <span className="text-muted-foreground/50">L</span></div>
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-1</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour1.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
                                 </div>
                                 <div className="flex items-center border-b border-white/5 py-0.5">
-                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Konsumsi per Jam</label>
-                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{hourlyConsumption.toFixed(2)} <span className="text-muted-foreground/50">L/hr</span></div>
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-2</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour2.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
                                 </div>
                                 <div className="flex items-center border-b border-white/5 py-0.5">
-                                    <label className="w-1/2 font-bold text-xs text-foreground">ROB Akhir</label>
-                                    <div className="w-1/2 text-right font-mono text-xs font-bold">{finalRob} <span className="text-muted-foreground/50">L</span></div>
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-3</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour3.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
+                                </div>
+                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                    <label className="w-1/2 font-bold text-xs text-foreground">Jam ke-4 (ROB Akhir)</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-bold">{robHour4.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
                                 </div>
                             </div>
                         )}
