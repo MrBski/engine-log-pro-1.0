@@ -142,35 +142,27 @@ export default function LogbookPage() {
   const watchedSections = form.watch("sections");
 
   useEffect(() => {
-    const onDutySection = watchedSections.find(s => s.title === 'Daily Tank Before On Duty');
-    const dailyTankSection = watchedSections.find(s => s.title === 'Daily Tank');
-  
-    const onDutyBeforeValue = onDutySection?.readings.find(r => r.key === 'Before')?.value;
-    const dailyTankBeforeValue = dailyTankSection?.readings.find(r => r.key === 'Before')?.value;
-  
-    const othersSectionIndex = watchedSections.findIndex(s => s.title === 'Others');
-    const used4HoursReadingIndex = watchedSections[othersSectionIndex]?.readings.findIndex(r => r.key === 'USED 4 Hours');
-  
-    if (othersSectionIndex !== -1 && used4HoursReadingIndex !== -1) {
-      // Check if both values are non-empty strings before parsing
-      if (onDutyBeforeValue && dailyTankBeforeValue) {
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'sections.5.readings.0.value' || name === 'sections.4.readings.0.value') {
+        const onDutyBeforeValue = form.getValues('sections.5.readings.0.value');
+        const dailyTankBeforeValue = form.getValues('sections.4.readings.0.value');
+
         const onDutyBefore = parseFloat(onDutyBeforeValue);
         const dailyTankBefore = parseFloat(dailyTankBeforeValue);
-  
-        // Check if both parsed values are valid numbers
-        if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
+        
+        const othersSectionIndex = 6;
+        const used4HoursReadingIndex = 1;
+
+        if (onDutyBeforeValue && dailyTankBeforeValue && !isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
           const used4Hours = ((onDutyBefore - dailyTankBefore) * 21) / 4;
           form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toFixed(2), { shouldValidate: false });
-        }
-      } else {
-        // If one or both inputs are empty, set the value to an empty string or 0.00
-        const currentValue = form.getValues(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`);
-        if (currentValue !== "") {
+        } else {
           form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
         }
       }
-    }
-  }, [watchedSections, form]);
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
 
 
   function onSubmit(values: LogFormData) {
@@ -271,7 +263,7 @@ export default function LogbookPage() {
                               type="tel"
                               inputMode="decimal"
                               className="h-8 bg-card-foreground/5 text-right text-sm"
-                              readOnly={reading.key === 'USED 4 Hours'}
+                              readOnly={field.name === 'sections.6.readings.1.value'}
                               {...field}
                               onKeyDown={handleKeyDown}
                             />
