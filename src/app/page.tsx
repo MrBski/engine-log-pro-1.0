@@ -64,22 +64,22 @@ export default function DashboardPage() {
         <Card className="flex items-center p-4">
           <Clock className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">Running Hours</p>
+            <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
             <p className="text-xl font-bold">{settings.runningHours.toLocaleString()} hrs</p>
+          </div>
+        </Card>
+        <Card className="flex items-center p-4">
+          <Clock className="h-6 w-6 text-muted-foreground mr-4" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
+            <p className="text-xl font-bold">{settings.generatorRunningHours.toLocaleString()} hrs</p>
           </div>
         </Card>
         <Card className="flex items-center p-4">
           <Fuel className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
             <p className="text-sm font-medium text-muted-foreground">Fuel Consumption</p>
-            <p className="text-xl font-bold">{latestLog ? getReading(latestLog, 'Fuel') : 'N/A'}</p>
-          </div>
-        </Card>
-        <Card className="flex items-center p-4">
-          <Gauge className="h-6 w-6 text-muted-foreground mr-4" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">Lube Oil Pressure</p>
-            <p className="text-xl font-bold">{latestLog ? getReading(latestLog, 'Pressure') : 'N/A'}</p>
+            <p className="text-xl font-bold">{latestLog ? getReading(latestLog, 'USED 4 Hours') : 'N/A'}</p>
           </div>
         </Card>
         <Card className="flex items-center p-4">

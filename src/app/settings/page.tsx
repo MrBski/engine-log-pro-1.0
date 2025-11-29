@@ -18,6 +18,7 @@ import Link from 'next/link';
 const settingsSchema = z.object({
   shipName: z.string().min(1, 'Ship name is required.'),
   runningHours: z.coerce.number().min(0, 'Running hours cannot be negative.'),
+  generatorRunningHours: z.coerce.number().min(0, 'Running hours cannot be negative.'),
 });
 
 const newOfficerSchema = z.object({
@@ -32,7 +33,8 @@ export default function SettingsPage() {
     resolver: zodResolver(settingsSchema),
     values: { 
       shipName: settings.shipName,
-      runningHours: settings.runningHours 
+      runningHours: settings.runningHours,
+      generatorRunningHours: settings.generatorRunningHours,
     },
   });
 
@@ -45,7 +47,8 @@ export default function SettingsPage() {
     setSettings(prev => ({ 
       ...prev, 
       shipName: values.shipName,
-      runningHours: values.runningHours
+      runningHours: values.runningHours,
+      generatorRunningHours: values.generatorRunningHours,
     }));
     toast({ title: 'Success', description: 'Settings updated.' });
   };
@@ -91,7 +94,18 @@ export default function SettingsPage() {
                   name="runningHours"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Running Hours</FormLabel>
+                      <FormLabel>M.E. Total Running Hours</FormLabel>
+                      <FormControl><Input type="number" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={settingsForm.control}
+                  name="generatorRunningHours"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Generator Total RHS</FormLabel>
                       <FormControl><Input type="number" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>

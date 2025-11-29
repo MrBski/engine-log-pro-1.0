@@ -46,13 +46,15 @@ export type AppSettings = {
   shipName: string;
   officers: string[];
   runningHours: number;
+  generatorRunningHours: number;
 };
 
 export const getInitialData = () => ({
   settings: {
     shipName: 'Engine log pro',
     officers: ['Chief Engineer', '2nd Engineer', 'Oiler'],
-    runningHours: 1204,
+    runningHours: 1208,
+    generatorRunningHours: 450,
   },
   inventory: [
     { id: 'item-1', name: 'Lube Oil Filter', category: 'main-engine', stock: 10, unit: 'pcs', lowStockThreshold: 2 },
