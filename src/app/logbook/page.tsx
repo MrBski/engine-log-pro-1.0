@@ -153,9 +153,9 @@ export default function LogbookPage() {
         const othersSectionIndex = 6;
         const used4HoursReadingIndex = 1;
 
-        if (onDutyBeforeValue && dailyTankBeforeValue && !isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
-          const used4Hours = ((onDutyBefore - dailyTankBefore) * 21) / 4;
-          form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toFixed(2), { shouldValidate: false });
+        if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
+          const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
+          form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: false });
         } else {
           form.setValue(`sections.${othersSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
         }
@@ -326,3 +326,5 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
