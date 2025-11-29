@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, MinusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -37,13 +37,14 @@ const itemSchema = z.object({
 });
 
 const useItemSchema = z.object({
+  itemId: z.string().min(1, "Please select an item to use."),
   amount: z.coerce.number().min(1, "Must use at least 1."),
 });
 
 export default function InventoryPage() {
   const [inventory, setInventory] = useLocalStorage<InventoryItem[]>('inventory', getInitialData().inventory);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [itemToUse, setItemToUse] = useState<InventoryItem | null>(null);
+  const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const addForm = useForm<z.infer<typeof itemSchema>>({
@@ -53,7 +54,7 @@ export default function InventoryPage() {
 
   const useFormInstance = useForm<z.infer<typeof useItemSchema>>({
     resolver: zodResolver(useItemSchema),
-    defaultValues: { amount: 1 },
+    defaultValues: { itemId: "", amount: 1 },
   });
 
   const handleAddItem = (values: z.infer<typeof itemSchema>) => {
@@ -65,15 +66,19 @@ export default function InventoryPage() {
   };
 
   const handleUseItem = (values: z.infer<typeof useItemSchema>) => {
-    if (!itemToUse) return;
+    const itemToUse = inventory.find(item => item.id === values.itemId);
+    if (!itemToUse) {
+      useFormInstance.setError("itemId", { type: "manual", message: "Item not found." });
+      return;
+    }
     if(values.amount > itemToUse.stock) {
         useFormInstance.setError("amount", { type: "manual", message: "Not enough stock." });
         return;
     }
     setInventory(prev => prev.map(item => item.id === itemToUse.id ? { ...item, stock: item.stock - values.amount } : item));
     toast({ title: "Success", description: `${values.amount} ${itemToUse.unit} of ${itemToUse.name} used.` });
-    setItemToUse(null);
     useFormInstance.reset();
+    setIsUseDialogOpen(false);
   };
 
   const categories: InventoryCategory[] = ['main-engine', 'generator', 'other'];
@@ -85,21 +90,17 @@ export default function InventoryPage() {
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>Stock</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="text-right">Stock</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map(item => (
             <TableRow key={item.id}>
               <TableCell className="font-medium">{item.name}</TableCell>
-              <TableCell>
+              <TableCell className="text-right">
                 <Badge variant={item.stock <= item.lowStockThreshold ? 'destructive' : 'secondary'}>
                   {item.stock} {item.unit}
                 </Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <Button variant="outline" size="sm" onClick={() => setItemToUse(item)}>Use</Button>
               </TableCell>
             </TableRow>
           ))}
@@ -107,6 +108,10 @@ export default function InventoryPage() {
       </Table>
     );
   };
+
+  const selectedItemForUsage = useFormInstance.watch("itemId");
+  const selectedItemDetails = inventory.find(item => item.id === selectedItemForUsage);
+
 
   return (
     <>
@@ -117,27 +122,62 @@ export default function InventoryPage() {
             <CardTitle>Inventory</CardTitle>
             <CardDescription>Manage all parts and supplies.</CardDescription>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild><Button><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Add New Inventory Item</DialogTitle></DialogHeader>
-              <Form {...addForm}><form onSubmit={addForm.handleSubmit(handleAddItem)} className="space-y-4">
-                <FormField control={addForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Item Name</FormLabel><FormControl><Input placeholder="e.g. Lube Oil Filter" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={addForm.control} name="category" render={({ field }) => (
-                  <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger></FormControl>
-                      <SelectContent><SelectItem value="main-engine">Main Engine</SelectItem><SelectItem value="generator">Generator</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent>
-                  </Select><FormMessage /></FormItem>
-                )} />
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField control={addForm.control} name="stock" render={({ field }) => (<FormItem><FormLabel>Stock</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={addForm.control} name="unit" render={({ field }) => (<FormItem><FormLabel>Unit</FormLabel><FormControl><Input placeholder="pcs" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={addForm.control} name="lowStockThreshold" render={({ field }) => (<FormItem><FormLabel>Threshold</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit">Add Item</Button></DialogFooter>
-              </form></Form>
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <Dialog open={isUseDialogOpen} onOpenChange={setIsUseDialogOpen}>
+              <DialogTrigger asChild><Button variant="outline"><MinusCircle className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Use Inventory Item</DialogTitle>
+                    <DialogDescription>Select an item and specify the amount used.</DialogDescription>
+                </DialogHeader>
+                <Form {...useFormInstance}><form onSubmit={useFormInstance.handleSubmit(handleUseItem)} className="space-y-4">
+                  <FormField control={useFormInstance.control} name="itemId" render={({ field }) => (
+                    <FormItem><FormLabel>Item</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Select an item to use" /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            {inventory.map(item => (
+                              <SelectItem key={item.id} value={item.id}>{item.name} (Stock: {item.stock})</SelectItem>
+                            ))}
+                          </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  {selectedItemDetails && (
+                    <FormField control={useFormInstance.control} name="amount" render={({ field }) => (
+                        <FormItem><FormLabel>Amount to use ({selectedItemDetails.unit})</FormLabel><FormControl><Input type="number" placeholder="1" {...field} /></FormControl><FormMessage /></FormItem>
+                    )} />
+                  )}
+                  <DialogFooter>
+                      <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
+                      <Button type="submit">Confirm Usage</Button>
+                  </DialogFooter>
+                </form></Form>
+              </DialogContent>
+            </Dialog>
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild><Button><PlusCircle className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Add New Inventory Item</DialogTitle></DialogHeader>
+                <Form {...addForm}><form onSubmit={addForm.handleSubmit(handleAddItem)} className="space-y-4">
+                  <FormField control={addForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Item Name</FormLabel><FormControl><Input placeholder="e.g. Lube Oil Filter" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={addForm.control} name="category" render={({ field }) => (
+                    <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger></FormControl>
+                        <SelectContent><SelectItem value="main-engine">Main Engine</SelectItem><SelectItem value="generator">Generator</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent>
+                    </Select><FormMessage /></FormItem>
+                  )} />
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField control={addForm.control} name="stock" render={({ field }) => (<FormItem><FormLabel>Stock</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={addForm.control} name="unit" render={({ field }) => (<FormItem><FormLabel>Unit</FormLabel><FormControl><Input placeholder="pcs" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={addForm.control} name="lowStockThreshold" render={({ field }) => (<FormItem><FormLabel>Threshold</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  </div>
+                  <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit">Add Item</Button></DialogFooter>
+                </form></Form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="main-engine">
@@ -152,25 +192,6 @@ export default function InventoryPage() {
           </Tabs>
         </CardContent>
       </Card>
-      
-      {/* Use Item Dialog */}
-      <Dialog open={!!itemToUse} onOpenChange={(open) => !open && setItemToUse(null)}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Use: {itemToUse?.name}</DialogTitle>
-                <DialogDescription>Current stock: {itemToUse?.stock} {itemToUse?.unit}</DialogDescription>
-            </DialogHeader>
-            <Form {...useFormInstance}><form onSubmit={useFormInstance.handleSubmit(handleUseItem)} className="space-y-4">
-                <FormField control={useFormInstance.control} name="amount" render={({ field }) => (
-                    <FormItem><FormLabel>Amount to use</FormLabel><FormControl><Input type="number" placeholder="1" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <DialogFooter>
-                    <Button type="button" variant="secondary" onClick={() => setItemToUse(null)}>Cancel</Button>
-                    <Button type="submit">Confirm Usage</Button>
-                </DialogFooter>
-            </form></Form>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
