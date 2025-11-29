@@ -1,4 +1,4 @@
-# **App Name**: MarineLogix
+# **App Name**: Engine Log Pro 
 
 ## Core Features:
 
