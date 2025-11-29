@@ -90,45 +90,32 @@ export default function LogbookPage() {
   });
 
   useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-        // Find indices for calculation fields dynamically
-        let onDutyBeforeValue: string | undefined;
-        let dailyTankBeforeValue: string | undefined;
-        let used4HoursSectionIndex: number | undefined;
-        let used4HoursReadingIndex: number | undefined;
+    const subscription = form.watch((value, { name, type }) => {
+      if (type !== 'change') return;
 
-        logbookSections.forEach((section, sIdx) => {
-            section.readings.forEach((reading, rIdx) => {
-                if (reading.id === 'onduty_before') onDutyBeforeValue = form.getValues(`sections.${sIdx}.readings.${rIdx}.value`);
-                if (reading.id === 'daily_before') dailyTankBeforeValue = form.getValues(`sections.${sIdx}.readings.${rIdx}.value`);
-                if (reading.id === 'other_used') {
-                    used4HoursSectionIndex = sIdx;
-                    used4HoursReadingIndex = rIdx;
-                }
-            });
-        });
-        
-        // Ensure we are watching the correct fields
-        const onDutyFieldName = name?.match(/sections\.(\d+)\.readings\.(\d+)\.value/);
-        if(onDutyFieldName){
-            const sectionIndex = parseInt(onDutyFieldName[1]);
-            const readingIndex = parseInt(onDutyFieldName[2]);
-            const fieldId = logbookSections[sectionIndex]?.readings[readingIndex]?.id;
-            if (fieldId !== 'onduty_before' && fieldId !== 'daily_before') return;
+      const onDutyBeforeValue = form.getValues('sections').find(s => s.readings.some(r => r.id === 'onduty_before'))?.readings.find(r => r.id === 'onduty_before')?.value;
+      const dailyTankBeforeValue = form.getValues('sections').find(s => s.readings.some(r => r.id === 'daily_before'))?.readings.find(r => r.id === 'daily_before')?.value;
+
+      let used4HoursSectionIndex: number | undefined;
+      let used4HoursReadingIndex: number | undefined;
+
+      logbookSections.forEach((section, sIdx) => {
+        const rIdx = section.readings.findIndex(r => r.id === 'other_used');
+        if (rIdx !== -1) {
+          used4HoursSectionIndex = sIdx;
+          used4HoursReadingIndex = rIdx;
         }
+      });
+      
+      const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
+      const dailyTankBefore = parseFloat(dailyTankBeforeValue || '0');
 
-
-        if (onDutyBeforeValue !== undefined && dailyTankBeforeValue !== undefined && used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
-            const onDutyBefore = parseFloat(onDutyBeforeValue);
-            const dailyTankBefore = parseFloat(dailyTankBeforeValue);
-            
-            if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore)) {
-                const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
-                form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: true, shouldDirty: true });
-            } else {
-                form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
-            }
-        }
+      if (!isNaN(onDutyBefore) && !isNaN(dailyTankBefore) && used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
+        const used4Hours = Math.round(((onDutyBefore - dailyTankBefore) * 21) / 4);
+        form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: true, shouldDirty: true });
+      } else if (used4HoursSectionIndex !== undefined && used4HoursReadingIndex !== undefined) {
+          form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
+      }
     });
     return () => subscription.unsubscribe();
   }, [form, logbookSections]);
@@ -276,6 +263,7 @@ export default function LogbookPage() {
                                 className={`h-8 bg-card-foreground/5 text-right text-sm ${isReadOnly ? 'font-bold' : ''}`}
                                 readOnly={isReadOnly}
                                 {...field}
+                                value={field.value ?? ''}
                                 onKeyDown={handleKeyDown}
                                 />
                             </FormControl>
@@ -338,3 +326,5 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
