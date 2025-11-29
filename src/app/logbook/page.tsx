@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { getInitialData, type EngineLog, type AppSettings } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 const logSchema = z.object({
   officer: z.string().min(1, "Officer is required."),
@@ -69,17 +70,23 @@ export default function LogbookPage() {
     setIsDialogOpen(false);
   }
 
+  const handleDeleteLog = (logId: string) => {
+    setLogs(logs.filter(log => log.id !== logId));
+    toast({ title: "Log Deleted", description: "The log entry has been removed." });
+  };
+  
+  const getReading = (log: EngineLog, key: string) => log.readings.find(r => r.key.includes(key))?.value || '-';
+
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <div>
-          <CardTitle>Engine Logbook</CardTitle>
-          <CardDescription>All recorded engine activities.</CardDescription>
+            {/* This content is now in the AppHeader */}
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
-              <PlusCircle className="mr-2 h-4 w-4" /> New Log
+              <PlusCircle className="mr-2 h-4 w-4" /> New Log Entry
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
@@ -140,10 +147,13 @@ export default function LogbookPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Timestamp</TableHead>
+              <TableHead>Date & Time</TableHead>
               <TableHead>Officer</TableHead>
-              <TableHead>Readings</TableHead>
+              <TableHead>RPM</TableHead>
+              <TableHead>Fuel Cons.</TableHead>
+              <TableHead>LO Pressure</TableHead>
               <TableHead>Notes</TableHead>
+              <TableHead><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -151,12 +161,30 @@ export default function LogbookPage() {
               <TableRow key={log.id}>
                 <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
                 <TableCell>{log.officer}</TableCell>
+                <TableCell>{getReading(log, 'RPM')} rpm</TableCell>
+                <TableCell>{getReading(log, 'Fuel')} L/hr</TableCell>
+                <TableCell>{getReading(log, 'Pressure')} bar</TableCell>
+                <TableCell className="max-w-[200px] truncate">{log.notes}</TableCell>
                 <TableCell>
-                  <div className="flex flex-col">
-                    {log.readings.map(r => <span key={r.id} className="text-xs">{r.key}: {r.value} {r.unit}</span>)}
-                  </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem disabled>
+                          <Edit className="mr-2 h-4 w-4" />
+                          <span>Edit</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDeleteLog(log.id)} className="text-destructive">
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          <span>Delete</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                 </TableCell>
-                <TableCell className="max-w-[300px] truncate">{log.notes}</TableCell>
               </TableRow>
             ))}
           </TableBody>
