@@ -34,12 +34,15 @@ const sectionColors: { [key: string]: string } = {
     'Fuel Consumption': 'bg-orange-600',
 };
 
-const toLocaleString = (timestamp: Timestamp | string | undefined) => {
+const toLocaleString = (timestamp: Timestamp | Date | string | undefined): string => {
     if (!timestamp) return '...';
     if (typeof timestamp === 'string') {
         return new Date(timestamp).toLocaleString();
     }
-    return timestamp.toDate().toLocaleString();
+    if ('toDate' in timestamp) { // Firestore Timestamp
+        return timestamp.toDate().toLocaleString();
+    }
+    return (timestamp as Date).toLocaleString();
 }
 
 function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
@@ -263,9 +266,16 @@ export default function LogActivityPage() {
         }
     }
     
-    const toShortLocaleString = (timestamp: Timestamp | string | undefined) => {
+    const toShortLocaleString = (timestamp: Timestamp | Date | string | undefined): string => {
       if (!timestamp) return '...';
-      const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp.toDate();
+      let date: Date;
+      if (typeof timestamp === 'string') {
+        date = new Date(timestamp);
+      } else if ('toDate' in timestamp) { // Firestore Timestamp
+        date = timestamp.toDate();
+      } else {
+        date = timestamp as Date;
+      }
       return date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'});
     }
 
@@ -280,10 +290,10 @@ export default function LogActivityPage() {
             </div>
 
             <div className="space-y-2">
-                {(sortedActivities || []).map(activity => {
+                {sortedActivities.map(activity => {
                     const notes = getNotes(activity);
                     const logId = activity.type === 'engine' ? activity.logId : null;
-                    const associatedLog = logId ? (logs || []).find(l => l.id === logId) : undefined;
+                    const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
                     
                     return (
                         <Card key={activity.id} className="flex items-center justify-between p-3">
@@ -306,7 +316,7 @@ export default function LogActivityPage() {
                             </div>
 
                             <div className="flex items-center gap-1">
-                               {activity.type === 'engine' && logId && associatedLog && (
+                               {activity.type === 'engine' && logId && (
                                 <>
                                     <Dialog>
                                         <DialogTrigger asChild>
@@ -345,3 +355,5 @@ export default function LogActivityPage() {
         </>
     )
 }
+
+    

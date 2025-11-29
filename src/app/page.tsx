@@ -96,9 +96,15 @@ export default function DashboardPage() {
      }
   };
 
-  const toDate = (timestamp: Timestamp | string) => {
-    if (typeof timestamp === 'string') return new Date(timestamp);
-    return timestamp.toDate();
+  const toDate = (timestamp: Timestamp | Date | string | undefined): Date => {
+    if (!timestamp) return new Date();
+    if (typeof timestamp === 'string') {
+        return new Date(timestamp);
+    }
+    if ('toDate' in timestamp) { // Firestore Timestamp
+        return timestamp.toDate();
+    }
+    return timestamp as Date;
   }
 
   const lowStockItems = inventory.filter(item => item.stock <= item.lowStockThreshold);
@@ -260,3 +266,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
