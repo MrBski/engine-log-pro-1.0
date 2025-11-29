@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Clock, Fuel, Gauge } from "lucide-react";
 import { useLocalStorage } from "@/lib/hooks/use-local-storage";
 import { getInitialData, type InventoryItem, type EngineLog } from "@/lib/data";
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid } from "recharts";
-import { ChartContainer, ChartTooltipContent, ChartLegendContent, ChartTooltip } from "@/components/ui/chart";
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
+import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
 import { AppHeader } from "@/components/app-header";
 
 export default function DashboardPage() {
@@ -139,7 +139,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Performance Overview</CardTitle>
-          </Header>
+          </CardHeader>
           <CardContent className="h-[300px] pl-2">
             <ChartContainer config={chartConfig} className="w-full h-full">
                 <BarChart accessibilityLayer data={chartData}>
@@ -153,7 +153,7 @@ export default function DashboardPage() {
                     />
                     <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-1))" />
                     <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-2))" />
-                    <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
+                    <Tooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
                     <Legend content={<ChartLegendContent />} />
                     <Bar dataKey="rpm" fill="var(--color-rpm)" radius={4} yAxisId="left" />
                     <Bar dataKey="fuel" fill="var(--color-fuel)" radius={4} yAxisId="right" />
