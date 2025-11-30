@@ -36,10 +36,7 @@ const sectionColors: { [key: string]: string } = {
 const safeToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
-    // Handle Firestore Timestamp object
-    if (typeof timestamp === 'object' && timestamp.toDate) {
-      return timestamp.toDate();
-    }
+    // Firestore Timestamps are converted in useData, so we primarily handle strings from localStorage
     if (typeof timestamp === 'string' || typeof timestamp === 'number') {
       const date = new Date(timestamp);
       if (!isNaN(date.getTime())) {
@@ -141,7 +138,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
 
     const robValue = robReading && robReading.value ? parseFloat(robReading.value) : 0;
     const used4HoursValue = used4HoursReading && used4HoursReading.value ? parseFloat(used4HoursReading.value) : 0;
-    const hourlyConsumption = used4HoursValue > 0 ? used4HoursValue / 4 : 0;
+    const hourlyConsumption = used4HoursValue > 0 ? Math.round(used4HoursValue / 4) : 0;
 
     const robHour1 = robValue - hourlyConsumption;
     const robHour2 = robHour1 - hourlyConsumption;
@@ -237,7 +234,7 @@ export default function LogActivityPage() {
         }
     };
 
-    // The data is already sorted by timestamp desc from useData hook. No need to re-sort.
+    // The data is already sorted by timestamp desc from useData hook.
     const sortedActivities = activityLog;
 
     const getIcon = (type: ActivityLog['type']) => {
@@ -263,8 +260,10 @@ export default function LogActivityPage() {
             <AppHeader />
             <div className="space-y-4">
                 {(activityLogLoading || logbookLoading) && (
-                    <div className="text-center py-10">
-                        <p>Loading activities...</p>
+                    <div className="space-y-2">
+                        <Card className="p-3 h-[74px] animate-pulse" />
+                        <Card className="p-3 h-[74px] animate-pulse" />
+                        <Card className="p-3 h-[74px] animate-pulse" />
                     </div>
                 )}
                 
@@ -339,3 +338,5 @@ export default function LogActivityPage() {
         </>
     )
 }
+
+    

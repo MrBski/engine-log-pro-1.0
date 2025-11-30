@@ -1,7 +1,7 @@
 
 "use client";
 
-import { KeyboardEvent, useEffect, useState, useMemo } from 'react';
+import { KeyboardEvent, useEffect, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -116,7 +116,7 @@ export default function LogbookPage() {
     const dailyTankAfter = parseFloat(dailyTankAfterValue || '0');
     
     if (!isNaN(onDutyBefore) && !isNaN(dailyTankAfter) && onDutyBefore > 0 && dailyTankAfter > 0) {
-        const used4Hours = Math.round(((onDutyBefore - dailyTankAfter) * 21) / 4);
+        const used4Hours = Math.round((onDutyBefore - dailyTankAfter));
         const currentVal = form.getValues(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`);
         if (currentVal !== used4Hours.toString()) {
             form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: true, shouldDirty: true });
@@ -347,6 +347,8 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
 
     
 
