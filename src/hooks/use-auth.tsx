@@ -2,7 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 const GUEST_SHIP_ID = "guest-ship";
@@ -20,6 +20,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUserName: (name: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,7 +54,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           name: getUserName(firebaseUser),
-          // Revert to a single, hardcoded ship ID for all logged-in users.
           shipId: GUEST_SHIP_ID, 
         });
       } else {
@@ -81,8 +81,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await signOut(auth);
   };
 
+  const updateUserName = async (name: string) => {
+    if (!auth || !auth.currentUser) {
+        throw new Error("User must be logged in to update their name.");
+    }
+    await updateProfile(auth.currentUser, { displayName: name });
+    // Manually update local state to reflect change immediately
+    setUser(prevUser => {
+        if (!prevUser || prevUser.uid === 'guest-user') return prevUser;
+        return { ...prevUser, name: name };
+    });
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUserName }}>
       {children}
     </AuthContext.Provider>
   );

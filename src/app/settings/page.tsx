@@ -29,6 +29,7 @@ import { useEffect, useState } from 'react';
 import { useData } from '@/hooks/use-data';
 import { useAuth } from '@/hooks/use-auth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 
 const settingsSchema = z.object({
   shipName: z.string().min(1, 'Ship name is required.'),
@@ -36,9 +37,10 @@ const settingsSchema = z.object({
   generatorRunningHours: z.coerce.number().min(0, 'Running hours cannot be negative.'),
 });
 
-const newOfficerSchema = z.object({
+const officerNameSchema = z.object({
   name: z.string().min(1, 'Officer name is required.'),
 });
+
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address.'),
@@ -49,7 +51,7 @@ const HARDCODED_PIN = "1234";
 
 export default function SettingsPage() {
   const { settings, updateSettings, settingsLoading } = useData();
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, updateUserName } = useAuth();
   const { toast } = useToast();
   
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
@@ -60,6 +62,10 @@ export default function SettingsPage() {
   const settingsForm = useForm<z.infer<typeof settingsSchema>>({
     resolver: zodResolver(settingsSchema),
   });
+
+  const officerNameForm = useForm<z.infer<typeof officerNameSchema>>({
+    resolver: zodResolver(officerNameSchema),
+  });
   
   useEffect(() => {
     if(settings) {
@@ -69,12 +75,10 @@ export default function SettingsPage() {
             generatorRunningHours: settings.generatorRunningHours || 0,
         });
     }
-  }, [settings, settingsForm]);
-
-  const newOfficerForm = useForm<z.infer<typeof newOfficerSchema>>({
-    resolver: zodResolver(newOfficerSchema),
-    defaultValues: { name: '' },
-  });
+    if (user && user.uid !== 'guest-user') {
+        officerNameForm.reset({ name: user.name });
+    }
+  }, [settings, user, settingsForm, officerNameForm]);
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -107,28 +111,12 @@ export default function SettingsPage() {
   };
 
 
-  const handleAddOfficer = async (values: z.infer<typeof newOfficerSchema>) => {
-    if (!settings) return;
-    const currentOfficers = settings.officers || [];
-    if (currentOfficers.includes(values.name)) {
-      newOfficerForm.setError('name', { message: 'Officer already exists.' });
-      return;
-    }
+  const handleOfficerNameSubmit = async (values: z.infer<typeof officerNameSchema>) => {
     try {
-        await updateSettings({ officers: [...currentOfficers, values.name] });
-        newOfficerForm.reset();
-    } catch(e) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to add officer.' });
-    }
-  };
-
-  const handleRemoveOfficer = async (officerToRemove: string) => {
-    if (!settings) return;
-    try {
-        const currentOfficers = settings.officers || [];
-        await updateSettings({ officers: currentOfficers.filter(o => o !== officerToRemove) });
-    } catch(e) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove officer.' });
+        await updateUserName(values.name);
+        toast({ title: "Officer Name Updated", description: `Your name is now set to "${values.name}".`});
+    } catch(e: any) {
+        toast({ variant: 'destructive', title: 'Error', description: e.message || 'Failed to update your name.' });
     }
   };
 
@@ -165,17 +153,38 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Account & Sync</CardTitle>
-            <CardDescription>Login to sync your data to the cloud.</CardDescription>
+            <CardDescription>Login to sync data and set your officer name.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoggedIn ? (
               <div className="space-y-4">
-                <p className="text-sm">You are logged in as <span className="font-semibold">{user?.email}</span>.</p>
-                <p className="text-sm text-muted-foreground">Your data is being synced automatically when online.</p>
-                <Button variant="outline" onClick={logout}>
-                  <Icons.logout className="mr-2 h-4 w-4" />
-                  Logout
-                </Button>
+                 <Form {...officerNameForm}>
+                    <form onSubmit={officerNameForm.handleSubmit(handleOfficerNameSubmit)} className="space-y-4">
+                        <FormField
+                            control={officerNameForm.control}
+                            name="name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Your Officer Name/Position</FormLabel>
+                                    <FormControl><Input placeholder="e.g. Chief Engineer" {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <Button type="submit" size="sm">Set Name</Button>
+                    </form>
+                </Form>
+                
+                <Separator className="my-6" />
+
+                <div className="space-y-2">
+                    <p className="text-sm">You are logged in as <span className="font-semibold">{user?.email}</span>.</p>
+                    <p className="text-sm text-muted-foreground">Your data is being synced automatically when online.</p>
+                    <Button variant="outline" onClick={logout}>
+                        <Icons.logout className="mr-2 h-4 w-4" />
+                        Logout
+                    </Button>
+                </div>
               </div>
             ) : (
               <Form {...loginForm}>
@@ -244,43 +253,6 @@ export default function SettingsPage() {
               </Form>
             </CardContent>
           </Card>
-        )}
-        
-        {settings && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Manage Officers</CardTitle>
-            <CardDescription>Add or remove officers on watch.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Form {...newOfficerForm}>
-              <form onSubmit={newOfficerForm.handleSubmit(handleAddOfficer)} className="flex items-start gap-2">
-                <FormField
-                  control={newOfficerForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormLabel className="sr-only">New Officer Name</FormLabel>
-                      <FormControl><Input placeholder="e.g. 3rd Engineer" {...field} disabled={!isLoggedIn} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" size="icon" disabled={!isLoggedIn}><Icons.userPlus className="h-4 w-4" /></Button>
-              </form>
-            </Form>
-            <div className="space-y-2">
-              {(settings.officers || []).map(officer => (
-                <div key={officer} className="flex items-center justify-between rounded-md border p-3">
-                  <span className="text-sm font-medium">{officer}</span>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveOfficer(officer)} disabled={!isLoggedIn}>
-                    <Icons.trash className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
         )}
 
          <Card className="md:col-span-2">
