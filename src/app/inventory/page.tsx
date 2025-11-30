@@ -70,19 +70,17 @@ export default function InventoryPage() {
     resolver: zodResolver(useItemSchema),
     defaultValues: { itemId: "", amount: 1 },
   });
+  
+  const isLoggedIn = user?.uid !== 'guest-user';
 
   const handleAddItem = async (values: z.infer<typeof itemSchema>) => {
-    if (!user || user.uid === 'guest-user') {
-        toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to add items.' });
-        return;
-    }
     try {
       await addInventoryItem(values);
       await addActivityLog({
         type: 'inventory',
         timestamp: new Date(),
         name: values.name,
-        officer: user.name,
+        officer: user?.name || 'System',
         notes: `Added ${values.stock} ${values.unit} to stock.`,
         category: values.category as InventoryCategory,
       });
@@ -95,10 +93,6 @@ export default function InventoryPage() {
   };
 
   const handleUseItem = async (values: z.infer<typeof useItemSchema>) => {
-    if (!user || user.uid === 'guest-user') {
-        toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to use items.' });
-        return;
-    }
     const itemToUse = inventory.find(item => item.id === values.itemId);
     if (!itemToUse) {
       useFormInstance.setError("itemId", { type: "manual", message: "Item not found." });
@@ -115,7 +109,7 @@ export default function InventoryPage() {
         type: 'inventory',
         timestamp: new Date(),
         name: itemToUse.name,
-        officer: user.name,
+        officer: user?.name || 'System',
         notes: `Used ${values.amount} ${itemToUse.unit}.`,
         category: itemToUse.category,
       });
@@ -200,7 +194,6 @@ export default function InventoryPage() {
 
   const selectedItemForUsage = useFormInstance.watch("itemId");
   const selectedItemDetails = inventory.find(item => item.id === selectedItemForUsage);
-  const isLoggedIn = user?.uid !== 'guest-user';
   
   const { isSubmitting: isAdding } = addForm.formState;
   const { isSubmitting: isUsing } = useFormInstance.formState;
@@ -295,5 +288,3 @@ export default function InventoryPage() {
     </>
   );
 }
-
-    

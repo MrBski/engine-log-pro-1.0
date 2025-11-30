@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // This will disable source maps in production, drastically reducing build size.
+  productionBrowserSourceMaps: false,
   images: {
     remotePatterns: [
       {
