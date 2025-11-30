@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { Icons } from '@/components/icons';
 import Link from 'next/link';
 import { useData } from '@/hooks/use-data';
+import { useAuth } from '@/hooks/use-auth';
 
 const readingSchema = z.object({
   id: z.string(),
@@ -32,8 +33,6 @@ const logSectionSchema = z.object({
 const logSchema = z.object({
   timestamp: z.string().min(1, "Timestamp is required"),
   sections: z.array(logSectionSchema),
-  onDutyEngineer: z.string().min(1, "On Duty Engineer name is required."),
-  dutyEngineerPosition: z.string().min(1, "On Duty Engineer position is required."),
   condition: z.string().optional(),
 });
 
@@ -51,6 +50,7 @@ const sectionColors: { [key: string]: string } = {
 
 export default function LogbookPage() {
   const { addLog, addActivityLog, settings, updateSettings, logbookSections = [], settingsLoading, logbookLoading } = useData();
+  const { user } = useAuth();
   const { toast } = useToast();
   
   const formReady = !settingsLoading && !logbookLoading;
@@ -60,8 +60,6 @@ export default function LogbookPage() {
     defaultValues: {
       timestamp: '',
       sections: [],
-      onDutyEngineer: '',
-      dutyEngineerPosition: '',
       condition: ""
     }
   });
@@ -104,8 +102,6 @@ export default function LogbookPage() {
           ...section,
           readings: section.readings.map(r => ({...r, value: ''}))
         })),
-        onDutyEngineer: settings.officers?.length > 0 ? settings.officers[0] : '',
-        dutyEngineerPosition: "Chief Engineer",
         condition: ""
       };
       form.reset(dynamicDefaultValues);
@@ -136,9 +132,14 @@ export default function LogbookPage() {
 
 
   async function onSubmit(values: LogFormData) {
+    if (!user || user.uid === 'guest-user') {
+      toast({ variant: 'destructive', title: "Error", description: "You must be logged in to save a log." });
+      return;
+    }
+    
     const newLogData = {
       timestamp: new Date(values.timestamp),
-      officer: values.onDutyEngineer,
+      officer: user.name,
       readings: values.sections.flatMap(s => 
         s.readings.map(r => ({
           id: r.id,
@@ -175,8 +176,6 @@ export default function LogbookPage() {
                 ...section,
                 readings: section.readings.map(r => ({...r, value: ''}))
             })),
-            onDutyEngineer: settings?.officers?.length > 0 ? settings.officers[0] : '',
-            dutyEngineerPosition: "Chief Engineer",
             condition: ""
         };
         form.reset(resetValues);
@@ -320,33 +319,7 @@ export default function LogbookPage() {
                 </div>
               ))}
               
-              <div className="pt-1 space-y-1">
-                <h3 className="text-muted-foreground bg-muted p-1 my-1 rounded-md text-center font-bold text-xs">On Duty Engineer</h3>
-                <FormField
-                  control={form.control}
-                  name="onDutyEngineer"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold text-xs" placeholder="Engineer Name" {...field} onKeyDown={handleKeyDown} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="dutyEngineerPosition"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                          <Input className="h-8 bg-card-foreground/5 text-center font-semibold text-xs" placeholder="Position" {...field} onKeyDown={handleKeyDown} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-               <div className="pt-1">
+              <div className="pt-1">
                 <h3 className="text-muted-foreground bg-muted p-1 my-1 rounded-md text-center font-bold text-xs">Condition</h3>
                 <FormField
                   control={form.control}
@@ -362,9 +335,10 @@ export default function LogbookPage() {
               </div>
               
               <div className="pt-4">
-                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || user?.uid === 'guest-user'}>
                   {form.formState.isSubmitting ? 'Saving...' : 'Save Log'}
                 </Button>
+                {user?.uid === 'guest-user' && <p className="text-xs text-muted-foreground text-center mt-2">You must be logged in to save a log.</p>}
               </div>
             </form>
           </Form>
@@ -373,3 +347,5 @@ export default function LogbookPage() {
     </div>
   );
 }
+
+    
