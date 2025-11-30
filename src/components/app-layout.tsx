@@ -4,37 +4,30 @@
 import { useAuth } from '@/hooks/use-auth';
 import { usePathname } from 'next/navigation';
 import BottomNav from '@/components/bottom-nav';
-import LoginPage from '@/app/login/page';
 import { useEffect, useState } from 'react';
 import { Icons } from './icons';
 
-// Halaman login tidak akan digunakan dalam alur utama lagi, tapi kita simpan filenya
-const PUBLIC_PATHS = ['/login']; 
-
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { isLoading } = useAuth();
+  const { isLoading: authIsLoading } = useAuth();
   const [isClient, setIsClient] = useState(false);
-  const pathname = usePathname();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  if (isLoading || !isClient) {
+  // While waiting for client-side hydration, show a minimal loader.
+  // This flicker should be very brief on subsequent loads.
+  if (!isClient || authIsLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background text-foreground">
-        <Icons.logo className="h-20 w-24 animate-pulse" />
-        <p className="text-lg font-semibold">Loading Application...</p>
+        <Icons.logo className="h-20 w-24" />
+        <p className="text-lg font-semibold">Engine Log Pro</p>
       </div>
     );
   }
 
-  // Jika halaman login diakses secara langsung, tampilkan saja.
-  if (pathname === '/login') {
-    return <LoginPage />;
-  }
-
-  // Untuk semua halaman lain, tampilkan layout utama aplikasi
+  // Render the main app layout immediately.
+  // The DataProvider will handle showing skeleton loaders inside the children components.
   return (
     <div className="flex min-h-screen flex-col">
       <main className="mb-16 flex-1 p-4 lg:p-6">{children}</main>
