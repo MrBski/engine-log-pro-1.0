@@ -29,7 +29,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-3">
-          <Icons.logo className="size-8 text-sidebar-primary" />
+          <Icons.logo className="size-12 text-sidebar-primary" />
           <span className="text-xl font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
             Engine log pro
           </span>

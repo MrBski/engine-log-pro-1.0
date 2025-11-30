@@ -1,4 +1,3 @@
-
 import {
   AlertCircle,
   Archive,
@@ -34,6 +33,7 @@ import {
   AlertTriangle,
   LogOut,
 } from 'lucide-react';
+import { BeMeLogo } from './be-me-logo';
 
 export const Icons = {
   alert: AlertCircle,
@@ -66,7 +66,7 @@ export const Icons = {
   wifiOff: WifiOff,
   close: X,
   zap: Zap,
-  logo: Anchor,
+  logo: BeMeLogo,
   warning: AlertTriangle,
   logout: LogOut,
 };
