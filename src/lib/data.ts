@@ -15,7 +15,7 @@ export type LogSection = {
 };
 
 export type EngineReading = {
-  id: string;
+  id:string;
   key: string; // e.g., "Main Engine RPM", or "M.E Port Side - RPM"
   value: string;
   unit: string;
@@ -41,7 +41,7 @@ export type InventoryItem = {
 };
 
 export type ActivityLog = 
-  | { type: 'engine', logId: string, officer: string, id: string; timestamp: Date | Timestamp }
+  | { type: 'engine', logId: string, officer: string, id: string; timestamp: Date | Timestamp, name: string, category: InventoryCategory }
   | { type: 'inventory'; notes: string; name: string; officer: string; category: InventoryCategory; id: string; timestamp: Date | Timestamp }
   | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp };
 
@@ -53,6 +53,7 @@ export type AppSettings = {
   generatorRunningHours: number;
   generatorStatus: 'on' | 'off';
   generatorStartTime: number | null;
+  generatorLastReset: Date | Timestamp | null;
 };
 
 export type AppData = {
@@ -71,6 +72,7 @@ export const getInitialData = (): AppData => ({
     generatorRunningHours: 0,
     generatorStatus: 'off' as 'on' | 'off',
     generatorStartTime: null,
+    generatorLastReset: null,
   },
   inventory: [] as InventoryItem[],
   logs: [] as EngineLog[],

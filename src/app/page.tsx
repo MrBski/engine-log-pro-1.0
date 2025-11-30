@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
+import { formatDistanceToNow } from 'date-fns';
 
 function formatDuration(seconds: number) {
     const h = Math.floor(seconds / 3600);
@@ -97,13 +98,15 @@ export default function DashboardPage() {
   const handleGeneratorReset = async () => {
      if (!settings || !isLoggedIn || !user?.name) return;
      try {
+        const now = new Date();
         await updateSettings({
             generatorRunningHours: 0,
             generatorStartTime: settings.generatorStatus === 'on' ? Date.now() : null,
+            generatorLastReset: now,
         });
         await addActivityLog({
             type: 'generator',
-            timestamp: new Date(),
+            timestamp: now,
             notes: 'Generator RHS Reset',
             officer: user.name,
         });
@@ -152,6 +155,9 @@ export default function DashboardPage() {
     }
     return (settings.generatorRunningHours || 0) * 3600;
   };
+  
+  const lastResetDate = settings?.generatorLastReset ? safeToDate(settings.generatorLastReset) : null;
+
 
   if (!mounted || loading || settingsLoading || inventoryLoading || logsLoading) {
     return (
@@ -176,12 +182,17 @@ export default function DashboardPage() {
           </div>
         </Card>
         <Card className="flex flex-col p-4 justify-between">
-            <div>
-              <div className="flex items-center">
+            <div className="flex-1">
+              <div className="flex items-start">
                 <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
                    <p className="text-xl font-bold">{formatDuration(getTotalElapsedSeconds())}</p>
+                   {lastResetDate && (
+                       <p className="text-xs text-muted-foreground mt-1">
+                           Reset {formatDistanceToNow(lastResetDate, { addSuffix: true })}
+                       </p>
+                   )}
                 </div>
               </div>
             </div>
