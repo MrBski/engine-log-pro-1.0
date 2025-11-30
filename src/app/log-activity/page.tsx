@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
@@ -237,12 +237,8 @@ export default function LogActivityPage() {
         }
     };
 
-    const sortedActivities = [...activityLog].sort((a, b) => {
-        const dateA = safeToDate(a.timestamp);
-        const dateB = safeToDate(b.timestamp);
-        if (!dateA || !dateB) return 0;
-        return dateB.getTime() - dateA.getTime();
-    });
+    // The data is already sorted by timestamp desc from useData hook. No need to re-sort.
+    const sortedActivities = activityLog;
 
 
     const categoryMapping: { [key: string]: string } = {

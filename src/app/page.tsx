@@ -39,13 +39,14 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const isLoggedIn = user?.uid !== 'guest-user';
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const handleGeneratorToggle = async () => {
-    if (!settings) return;
+    if (!settings || !isLoggedIn) return;
     if (settings.generatorStatus === 'on') {
       // Turning OFF
       const endTime = Date.now();
@@ -88,7 +89,7 @@ export default function DashboardPage() {
   };
 
   const handleGeneratorReset = async () => {
-     if (!settings) return;
+     if (!settings || !isLoggedIn) return;
      try {
         await updateSettings({
             generatorRunningHours: 0,
@@ -181,7 +182,7 @@ export default function DashboardPage() {
             <div className="flex justify-end gap-2 mt-2">
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="icon" className="h-8 w-8"><Icons.reset /></Button>
+                        <Button variant="destructive" size="icon" className="h-8 w-8" disabled={!isLoggedIn}><Icons.reset /></Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader><AlertDialogTitle>Reset Generator RHS?</AlertDialogTitle><AlertDialogDescription>This will reset the running hours to 0. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
@@ -195,6 +196,7 @@ export default function DashboardPage() {
                     size="icon" 
                     className={cn("h-8 w-8", settings?.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
                     onClick={handleGeneratorToggle}
+                    disabled={!isLoggedIn}
                 >
                     {settings?.generatorStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
                 </Button>
