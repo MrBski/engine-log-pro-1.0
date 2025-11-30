@@ -71,12 +71,13 @@ export default function SettingsPage() {
 
   const handleAddOfficer = async (values: z.infer<typeof newOfficerSchema>) => {
     if (!settings) return;
-    if (settings.officers.includes(values.name)) {
+    const currentOfficers = settings.officers || [];
+    if (currentOfficers.includes(values.name)) {
       newOfficerForm.setError('name', { message: 'Officer already exists.' });
       return;
     }
     try {
-        await updateSettings({ officers: [...settings.officers, values.name] });
+        await updateSettings({ officers: [...currentOfficers, values.name] });
         newOfficerForm.reset();
     } catch(e) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to add officer.' });
@@ -86,7 +87,8 @@ export default function SettingsPage() {
   const handleRemoveOfficer = async (officerToRemove: string) => {
     if (!settings) return;
     try {
-        await updateSettings({ officers: settings.officers.filter(o => o !== officerToRemove) });
+        const currentOfficers = settings.officers || [];
+        await updateSettings({ officers: currentOfficers.filter(o => o !== officerToRemove) });
     } catch(e) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to remove officer.' });
     }
@@ -155,52 +157,55 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Ship Details</CardTitle>
-            <CardDescription>Update general ship information.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...settingsForm}>
-              <form onSubmit={settingsForm.handleSubmit(handleUpdateSettings)} className="space-y-4">
-                <FormField
-                  control={settingsForm.control}
-                  name="shipName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Ship Name</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={settingsForm.control}
-                  name="runningHours"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>M.E. Total Running Hours</FormLabel>
-                      <FormControl><Input type="number" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={settingsForm.control}
-                  name="generatorRunningHours"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Generator Total RHS</FormLabel>
-                      <FormControl><Input type="number" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit">Save Changes</Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+        {settings && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Ship Details</CardTitle>
+              <CardDescription>Update general ship information.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form {...settingsForm}>
+                <form onSubmit={settingsForm.handleSubmit(handleUpdateSettings)} className="space-y-4">
+                  <FormField
+                    control={settingsForm.control}
+                    name="shipName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ship Name</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={settingsForm.control}
+                    name="runningHours"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>M.E. Total Running Hours</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={settingsForm.control}
+                    name="generatorRunningHours"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Generator Total RHS</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit">Save Changes</Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        )}
+        
         {settings && (
         <Card>
           <CardHeader>
@@ -225,7 +230,7 @@ export default function SettingsPage() {
               </form>
             </Form>
             <div className="space-y-2">
-              {settings.officers.map(officer => (
+              {(settings.officers || []).map(officer => (
                 <div key={officer} className="flex items-center justify-between rounded-md border p-3">
                   <span className="text-sm font-medium">{officer}</span>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveOfficer(officer)}>
@@ -237,6 +242,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
         )}
+
          <Card className="md:col-span-2">
             <CardHeader>
                 <CardTitle>Logbook Configuration</CardTitle>
