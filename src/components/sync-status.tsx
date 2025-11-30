@@ -7,11 +7,12 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/use-auth';
+import { useData } from '@/hooks/use-data';
 
 export function SyncStatus() {
   const { user } = useAuth();
+  const { isSyncing: dataIsSyncing } = useData();
   const [isOnline, setIsOnline] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -22,34 +23,19 @@ export function SyncStatus() {
     
     const handleOnline = () => {
       setIsOnline(true);
-      if (user?.uid !== 'guest-user') {
-        setIsSyncing(true);
-        toast({
+      toast({
           title: "Connection Restored",
-          description: "Attempting to sync cloud data...",
+          description: "You are back online. Data will sync automatically.",
         });
-
-        // Simulate sync process
-        setTimeout(() => {
-          setIsSyncing(false);
-          toast({
-            title: "Sync Complete",
-            description: "Your data is now up-to-date.",
-          });
-        }, 3000);
-      }
     };
 
     const handleOffline = () => {
       setIsOnline(false);
-      setIsSyncing(false);
-      if (user?.uid !== 'guest-user') {
-        toast({
+      toast({
           variant: "destructive",
           title: "Connection Lost",
-          description: "You are now in offline mode. Changes will be saved locally.",
+          description: "You are now in offline mode. Your data is saved locally.",
         });
-      }
     };
 
     window.addEventListener('online', handleOnline);
@@ -59,7 +45,7 @@ export function SyncStatus() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline',handleOffline);
     };
-  }, [toast, user]);
+  }, [toast]);
 
   // Hide the indicator if user is not logged in (is a guest)
   if (user?.uid === 'guest-user') {
@@ -71,14 +57,14 @@ export function SyncStatus() {
   let badgeVariant: "destructive" | "default" | "secondary" | "outline" | null | undefined = "destructive";
 
   if (isOnline) {
-    statusText = isSyncing ? "Syncing..." : "Online";
+    statusText = dataIsSyncing ? "Syncing..." : "Online";
     StatusIcon = Icons.wifi;
-    badgeVariant = isSyncing ? "secondary" : "default";
+    badgeVariant = dataIsSyncing ? "secondary" : "default"; // 'default' will be green-ish
   }
 
   return (
     <Badge variant={badgeVariant} className="flex items-center gap-2 transition-all">
-      <StatusIcon className={cn("size-3.5", isSyncing && "animate-pulse")} />
+      <StatusIcon className={cn("size-3.5", dataIsSyncing && "animate-pulse")} />
       <span className="text-xs font-medium">{statusText}</span>
     </Badge>
   );
