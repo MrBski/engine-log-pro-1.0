@@ -1,23 +1,8 @@
 
 'use client';
 
-import React, { createContext, useContext, ReactNode, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { useAuth } from './use-auth';
-import { 
-    collection, 
-    query, 
-    orderBy, 
-    addDoc, 
-    doc,
-    deleteDoc,
-    updateDoc,
-    setDoc,
-    Timestamp,
-    where,
-    getDocs,
-} from 'firebase/firestore';
-import { useCollectionData, useDocumentData } from 'react-firebase-hooks/firestore';
-import { db } from '@/lib/firebase';
 import { 
     type AppSettings, 
     type EngineLog, 
@@ -26,32 +11,6 @@ import {
     type LogSection,
     getInitialData, 
 } from '@/lib/data';
-
-// Helper function to safely convert Firestore Timestamps
-const convertTimestamps = (data: any): any => {
-  if (!data) return data;
-
-  if (data instanceof Timestamp) {
-    return data.toDate();
-  }
-
-  if (Array.isArray(data)) {
-    return data.map(item => convertTimestamps(item));
-  }
-
-  if (typeof data === 'object') {
-    const newObj: { [key: string]: any } = {};
-    for (const key in data) {
-        if (Object.prototype.hasOwnProperty.call(data, key)) {
-            newObj[key] = convertTimestamps(data[key]);
-        }
-    }
-    return newObj;
-  }
-  
-  return data;
-};
-
 
 interface DataContextType {
   settings: AppSettings | undefined;
@@ -78,89 +37,80 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
     const { user, isLoading: authLoading } = useAuth();
-    const initialData = getInitialData();
     
-    // Determine if we should be using Firebase
-    const useFirebase = !!user;
+    // --- Local State Management for Offline Mode ---
+    const [settings, setSettings] = useState<AppSettings>();
+    const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [logs, setLogs] = useState<EngineLog[]>([]);
+    const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
+    const [logbookSections, setLogbookSections] = useState<LogSection[]>();
+    const [isDataInitialized, setIsDataInitialized] = useState(false);
 
-    // --- Firestore Hooks ---
-    const settingsRef = useFirebase ? doc(db!, 'settings', 'main') : null;
-    const [settingsDoc, settingsLoading, settingsError] = useDocumentData(settingsRef);
+    // Initialize state from local data source only once
+    useEffect(() => {
+        if (!isDataInitialized) {
+            const initialData = getInitialData();
+            setSettings(initialData.settings);
+            setInventory(initialData.inventory);
+            setLogs(initialData.logs);
+            setActivityLog(initialData.activityLog);
+            setLogbookSections(initialData.logbookSections);
+            setIsDataInitialized(true);
+        }
+    }, [isDataInitialized]);
 
-    const logbookRef = useFirebase ? doc(db!, 'logbook', 'sections') : null;
-    const [logbookDoc, logbookLoading, logbookError] = useDocumentData(logbookRef);
-    
-    const inventoryQuery = useFirebase ? query(collection(db!, `users/${user.uid}/inventory`), orderBy('name', 'asc')) : null;
-    const [inventoryCol, inventoryLoading, inventoryError] = useCollectionData(inventoryQuery, { idField: 'id' });
 
-    const logsQuery = useFirebase ? query(collection(db!, `users/${user.uid}/logs`), orderBy('timestamp', 'desc')) : null;
-    const [logsCol, logsLoading, logsError] = useCollectionData(logsQuery, { idField: 'id' });
-
-    const activityQuery = useFirebase ? query(collection(db!, `users/${user.uid}/activityLog`), orderBy('timestamp', 'desc')) : null;
-    const [activityCol, activityLoading, activityError] = useCollectionData(activityQuery, { idField: 'id' });
-
-    // --- Proactive Data Conversion ---
-    const settings = useMemo(() => convertTimestamps(settingsDoc), [settingsDoc]);
-    const logbookSections = useMemo(() => logbookDoc?.sections ? convertTimestamps(logbookDoc.sections) : undefined, [logbookDoc]);
-    const inventory = useMemo(() => convertTimestamps(inventoryCol) as InventoryItem[], [inventoryCol]);
-    const logs = useMemo(() => convertTimestamps(logsCol) as EngineLog[], [logsCol]);
-    const activityLog = useMemo(() => convertTimestamps(activityCol) as ActivityLog[], [activityCol]);
-
-    const loading = authLoading || (useFirebase && (settingsLoading || logbookLoading || inventoryLoading || logsLoading || activityLoading));
-
-    // --- MUTATION FUNCTIONS ---
+    // --- MUTATION FUNCTIONS (Local State) ---
     
     const updateSettings = async (newSettings: Partial<AppSettings>) => {
-        if (!user || !db) return;
-        const settingsRef = doc(db, 'settings', 'main');
-        await setDoc(settingsRef, newSettings, { merge: true });
+        setSettings(prev => prev ? { ...prev, ...newSettings } : undefined);
     };
 
-    const addLog = async (log: Omit<EngineLog, 'id'>) => {
-        if (!user || !db) throw new Error("User not authenticated or DB not available");
-        const logsCollection = collection(db, `users/${user.uid}/logs`);
-        const docRef = await addDoc(logsCollection, log);
-        return docRef.id;
+    const addLog = async (logData: Omit<EngineLog, 'id'>) => {
+        const newLogId = `log-${Date.now()}`;
+        const newLog: EngineLog = {
+            ...logData,
+            id: newLogId,
+        };
+        setLogs(prev => [newLog, ...prev]);
+        return newLogId; // Return the generated ID
     };
     
     const deleteLog = async (logId: string) => {
-        if (!user || !db) return;
-        await deleteDoc(doc(db, `users/${user.uid}/logs`, logId));
-        
-        const activityQueryRef = query(collection(db, `users/${user.uid}/activityLog`), where("logId", "==", logId));
-        const activitySnapshot = await getDocs(activityQueryRef);
-        activitySnapshot.forEach(async (docToDelete) => {
-            await deleteDoc(docToDelete.ref);
-        });
+        setLogs(prev => prev.filter(l => l.id !== logId));
+        setActivityLog(prev => prev.filter(a => !(a.type === 'engine' && a.logId === logId)));
     };
 
-    const addInventoryItem = async (item: Omit<InventoryItem, 'id'>) => {
-        if (!user || !db) return;
-        await addDoc(collection(db, `users/${user.uid}/inventory`), item);
+    const addInventoryItem = async (itemData: Omit<InventoryItem, 'id'>) => {
+        const newItem: InventoryItem = {
+            ...itemData,
+            id: `inv-${Date.now()}`,
+        };
+        setInventory(prev => [newItem, ...prev].sort((a, b) => a.name.localeCompare(b.name)));
     };
 
     const updateInventoryItem = async (itemId: string, updates: Partial<InventoryItem>) => {
-        if (!user || !db) return;
-        await updateDoc(doc(db, `users/${user.uid}/inventory`, itemId), updates);
+        setInventory(prev => prev.map(item => item.id === itemId ? { ...item, ...updates } : item));
     };
 
-    const addActivityLog = async (activity: Omit<ActivityLog, 'id'>) => {
-        if (!user || !db) return;
-        await addDoc(collection(db, `users/${user.uid}/activityLog`), activity);
+    const addActivityLog = async (activityData: Omit<ActivityLog, 'id'>) => {
+        const newActivity = {
+            ...activityData,
+            id: `act-${Date.now()}`,
+        } as ActivityLog;
+        setActivityLog(prev => [newActivity, ...prev]);
     };
     
     const updateLogbookSections = async (sections: LogSection[]) => {
-        if (!user || !db) return;
-        const logbookRef = doc(db, 'logbook', 'sections');
-        await setDoc(logbookRef, { sections });
+        setLogbookSections(sections);
     };
     
     const data: DataContextType = {
-        settings: useFirebase ? settings : initialData.settings,
-        logbookSections: useFirebase ? logbookSections : initialData.logbookSections,
-        inventory: useFirebase ? (inventory || []) : initialData.inventory,
-        logs: useFirebase ? (logs || []) : initialData.logs,
-        activityLog: useFirebase ? (activityLog || []) : initialData.activityLog,
+        settings,
+        logbookSections,
+        inventory,
+        logs,
+        activityLog,
         updateSettings,
         addLog,
         deleteLog,
@@ -168,7 +118,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updateInventoryItem,
         addActivityLog,
         updateLogbookSections,
-        loading,
+        loading: authLoading || !isDataInitialized,
     };
 
     return (
