@@ -208,7 +208,7 @@ export default function LogbookPage() {
             <AppHeader />
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-center">New Engine Log Sheet</CardTitle>
+                    <CardTitle className="text-center">Input Data</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center">
                     <p>Loading Logbook...</p>
@@ -258,7 +258,7 @@ export default function LogbookPage() {
       <AppHeader />
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-center">New Engine Log Sheet</CardTitle>
+          <CardTitle className="text-center">Input Data</CardTitle>
            <Button variant="ghost" size="icon" asChild>
                 <Link href="/settings/logbook">
                     <Icons.settings className="h-5 w-5" />
