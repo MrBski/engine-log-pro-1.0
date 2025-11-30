@@ -3,10 +3,12 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import type { User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User as FirebaseUser } from 'firebase/auth';
+// import { auth } from '@/lib/firebase'; // Kita nonaktifkan firebase auth untuk sementara
 import { useToast } from './use-toast';
+
+// Definisikan 'auth' sebagai null untuk mode offline/publik
+const auth = null;
 
 interface User {
   uid: string;
@@ -30,76 +32,31 @@ const DEMO_USERS: { [email: string]: { name: string } } = {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Secara default, kita sediakan pengguna "Tamu" agar aplikasi bisa langsung jalan
+  const [user, setUser] = useState<User | null>({ uid: 'guest-user', email: 'guest@example.com', name: 'Guest' });
+  const [isLoading, setIsLoading] = useState(false); // Tidak ada lagi loading auth state
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    // If Firebase is disabled, create a fake user and stop loading.
-    if (!auth) {
-        setUser({ uid: 'offline-user', email: 'chief@example.com', name: 'Chief Engineer' });
-        setIsLoading(false);
-        return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        // User is signed in.
-        const profileName = firebaseUser.email ? (DEMO_USERS[firebaseUser.email]?.name || firebaseUser.email.split('@')[0]) : 'User';
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          name: profileName,
-        });
-      } else {
-        // User is signed out.
-        setUser(null);
-      }
-      setIsLoading(false);
-    });
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, []);
+  // Logika onAuthStateChanged tidak lagi diperlukan untuk alur ini
+  // useEffect(() => { ... });
 
   const login = async (email: string, password: string) => {
-    if (!auth) {
-      // Simulate login for offline mode
-      const profileName = DEMO_USERS[email]?.name || email.split('@')[0] || 'User';
-      setUser({ uid: 'offline-user', email, name: profileName });
-      router.push('/');
-      return;
-    }
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push('/');
-    } catch (error: any) {
-      console.error("Firebase login error:", error);
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-api-key') {
-          throw new Error('Invalid email, password, or Firebase configuration.');
-      }
-      throw new Error('An unexpected error occurred during login.');
-    }
+    toast({ variant: 'destructive', title: 'Not Implemented', description: 'Login is currently disabled.' });
+    // Logika login Firebase bisa ditambahkan di sini nanti saat sinkronisasi diaktifkan
+    // Contoh:
+    // try {
+    //   if (!auth) throw new Error("Firebase is not configured.");
+    //   await signInWithEmailAndPassword(auth, email, password);
+    //   router.push('/');
+    // } catch (error: any) { ... }
   };
 
   const logout = async () => {
-    if (!auth) {
-       // Simulate logout for offline mode
-       setUser(null);
-       router.push('/login');
-       return;
-    }
-    try {
-      await signOut(auth);
-      router.push('/login');
-    } catch (error) {
-       toast({
-        variant: 'destructive',
-        title: 'Logout Failed',
-        description: 'Could not log you out. Please try again.',
-      });
-    }
+    toast({ title: 'Logged Out', description: 'You have been logged out.' });
+    // Logika logout Firebase bisa ditambahkan di sini nanti
+    // setUser(null) // kembali ke guest
+    // router.push('/')
   };
 
   return (
