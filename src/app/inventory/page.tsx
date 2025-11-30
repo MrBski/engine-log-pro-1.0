@@ -19,17 +19,6 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -54,11 +43,17 @@ const useItemSchema = z.object({
   amount: z.coerce.number().min(1, "Must use at least 1."),
 });
 
+const HARDCODED_PIN = "1234";
+
 export default function InventoryPage() {
   const { inventory = [], addInventoryItem, updateInventoryItem, deleteInventoryItem, addActivityLog, inventoryLoading } = useData();
   const { user } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
+  const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState('');
   const { toast } = useToast();
 
   const addForm = useForm<z.infer<typeof itemSchema>>({
@@ -121,15 +116,23 @@ export default function InventoryPage() {
     }
   };
   
-  const handleDeleteItem = async (itemId: string) => {
-    const itemToDelete = inventory.find(item => item.id === itemId);
-    if (!itemToDelete) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not find item to delete.' });
-      return;
+  const initiateDeleteItem = (item: InventoryItem) => {
+    setItemToDelete(item);
+    setIsPinDialogOpen(true);
+    setPin('');
+    setPinError('');
+  };
+
+  const handlePinConfirmDelete = async () => {
+    if (pin !== HARDCODED_PIN) {
+        setPinError('Incorrect PIN. Please try again.');
+        return;
     }
 
+    if (!itemToDelete) return;
+
     try {
-      await deleteInventoryItem(itemId);
+      await deleteInventoryItem(itemToDelete.id);
       await addActivityLog({
         type: 'inventory',
         timestamp: new Date(),
@@ -139,6 +142,8 @@ export default function InventoryPage() {
         category: itemToDelete.category,
       });
       toast({ title: 'Success', description: `Item "${itemToDelete.name}" has been deleted.` });
+      setIsPinDialogOpen(false);
+      setItemToDelete(null);
     } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete item.' });
     }
@@ -179,25 +184,15 @@ export default function InventoryPage() {
                 </Badge>
               </TableCell>
               <TableCell className="p-2 text-right">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" disabled={!isLoggedIn}>
-                      <Icons.trash className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete the item "{item.name}". This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleDeleteItem(item.id)}>Delete</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-muted-foreground" 
+                    disabled={!isLoggedIn}
+                    onClick={() => initiateDeleteItem(item)}
+                >
+                    <Icons.trash className="h-4 w-4" />
+                </Button>
               </TableCell>
             </TableRow>
           ))}
@@ -299,6 +294,36 @@ export default function InventoryPage() {
           </Tabs>
         </CardContent>
       </Card>
+      
+       <Dialog open={isPinDialogOpen} onOpenChange={setIsPinDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              To delete "{itemToDelete?.name}", please enter the 4-digit security PIN.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="••••"
+              value={pin}
+              onChange={(e) => {
+                setPin(e.target.value);
+                setPinError('');
+              }}
+              className="text-center font-mono text-2xl tracking-widest"
+            />
+            {pinError && <p className="text-sm text-destructive text-center">{pinError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPinDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handlePinConfirmDelete}>Delete Item</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
