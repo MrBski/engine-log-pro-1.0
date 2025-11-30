@@ -37,11 +37,22 @@ const getUserName = (firebaseUser: FirebaseUser | null): string => {
     return 'User';
 }
 
+const getShipId = (firebaseUser: FirebaseUser | null): string => {
+    // In a multi-tenant app, you'd get this from a custom claim or a user profile document.
+    // For now, it's hardcoded for simplicity.
+    return firebaseUser ? "guest-ship" : GUEST_SHIP_ID;
+}
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const storedUser = localStorage.getItem('authUser');
+    if (storedUser) {
+        setUser(JSON.parse(storedUser));
+    }
+    
     if (!auth) {
       setUser(GUEST_USER);
       setIsLoading(false);
@@ -50,14 +61,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        setUser({
+        const userData = {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           name: getUserName(firebaseUser),
-          shipId: GUEST_SHIP_ID, 
-        });
+          shipId: getShipId(firebaseUser), 
+        };
+        setUser(userData);
+        localStorage.setItem('authUser', JSON.stringify(userData));
       } else {
         setUser(GUEST_USER);
+        localStorage.removeItem('authUser');
       }
       setIsLoading(false);
     });
@@ -76,6 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!auth) {
       console.warn("Firebase is not enabled. Cannot log out.");
       setUser(GUEST_USER);
+      localStorage.removeItem('authUser');
       return;
     }
     await signOut(auth);
@@ -89,7 +104,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Manually update local state to reflect change immediately
     setUser(prevUser => {
         if (!prevUser || prevUser.uid === 'guest-user') return prevUser;
-        return { ...prevUser, name: name };
+        const updatedUser = { ...prevUser, name: name };
+        localStorage.setItem('authUser', JSON.stringify(updatedUser));
+        return updatedUser;
     });
   }
 

@@ -246,8 +246,8 @@ export default function SettingsPage() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" disabled={!isLoggedIn}>
-                    {isLoggedIn ? 'Save Changes' : 'Login to make changes'}
+                  <Button type="submit" disabled={!user}>
+                    {user ? 'Save Changes' : 'Login to make changes'}
                   </Button>
                 </form>
               </Form>
@@ -261,7 +261,7 @@ export default function SettingsPage() {
                 <CardDescription>Customize the sections and fields that appear in the engine logbook.</CardDescription>
             </CardHeader>
             <CardContent>
-                <Button asChild variant="outline" disabled={!isLoggedIn}>
+                <Button asChild variant="outline" disabled={!user}>
                     <Link href="/settings/logbook">
                         <Icons.book className="mr-2 h-4 w-4" />
                         Customize Logbook

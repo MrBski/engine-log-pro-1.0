@@ -132,7 +132,7 @@ export default function LogbookPage() {
 
 
   async function onSubmit(values: LogFormData) {
-    if (!user || user.uid === 'guest-user') {
+    if (!user) {
       toast({ variant: 'destructive', title: "Error", description: "You must be logged in to save a log." });
       return;
     }
@@ -335,10 +335,10 @@ export default function LogbookPage() {
               </div>
               
               <div className="pt-4">
-                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || user?.uid === 'guest-user'}>
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || !user}>
                   {form.formState.isSubmitting ? 'Saving...' : 'Save Log'}
                 </Button>
-                {user?.uid === 'guest-user' && <p className="text-xs text-muted-foreground text-center mt-2">You must be logged in to save a log.</p>}
+                {!user && <p className="text-xs text-muted-foreground text-center mt-2">You must be logged in to save a log.</p>}
               </div>
             </form>
           </Form>
@@ -347,9 +347,3 @@ export default function LogbookPage() {
     </div>
   );
 }
-
-    
-
-    
-
-    

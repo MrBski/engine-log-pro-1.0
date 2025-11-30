@@ -81,6 +81,7 @@ interface DataContextType {
   logbookLoading: boolean;
 
   isSyncing: boolean;
+  loading: boolean; // General loading state
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -127,9 +128,6 @@ const convertTimestampsInLocalStorage = (data: any): any => {
 export const DataProvider = ({ children }: { children: ReactNode }) => {
     const { user, isLoading: authLoading } = useAuth();
     
-    // Hardcoded shipId for guest/single-tenant mode
-    const shipId = "guest-ship";
-    
     const [settings, setSettings] = useState<AppSettings | undefined>();
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [logs, setLogs] = useState<EngineLog[]>([]);
@@ -143,21 +141,29 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [logbookLoading, setLogbookLoading] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
 
-    const loadLocalData = useCallback(() => {
+    const shipId = user?.shipId || "guest-ship";
+
+    const loadInitialData = useCallback(() => {
         const initialData = getInitialData();
-        setSettings(getLocalData(`settings_${shipId}`, initialData.settings));
-        setInventory(getLocalData(`inventory_${shipId}`, initialData.inventory));
-        setLogs(getLocalData(`logs_${shipId}`, initialData.logs));
-        const activities = getLocalData(`activityLog_${shipId}`, initialData.activityLog);
-        setActivityLog(activities.sort((a: ActivityLog, b: ActivityLog) => (b.timestamp as Date).getTime() - (a.timestamp as Date).getTime()));
-        setLogbookSections(getLocalData(`logbookSections_${shipId}`, initialData.logbookSections));
+        const shipIdToLoad = user?.shipId || "guest-ship";
+
+        setSettings(getLocalData(`settings_${shipIdToLoad}`, initialData.settings));
+        setInventory(getLocalData(`inventory_${shipIdToLoad}`, initialData.inventory));
+        setLogs(getLocalData(`logs_${shipIdToLoad}`, initialData.logs));
+        const activities = getLocalData(`activityLog_${shipIdToLoad}`, initialData.activityLog);
+        setActivityLog(activities.sort((a: ActivityLog, b: ActivityLog) => (new Date(b.timestamp as string)).getTime() - (new Date(a.timestamp as string)).getTime()));
+        setLogbookSections(getLocalData(`logbookSections_${shipIdToLoad}`, initialData.logbookSections));
         
         setSettingsLoading(false);
         setInventoryLoading(false);
         setLogsLoading(false);
         setActivityLogLoading(false);
         setLogbookLoading(false);
-    }, [shipId]);
+    }, [user?.shipId]);
+
+    useEffect(() => {
+        loadInitialData();
+    }, [loadInitialData]);
 
     const syncLocalToFirebase = useCallback(async () => {
         if (!db || !user || user.uid === 'guest-user') return;
@@ -169,25 +175,25 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             const batch = writeBatch(db);
             const shipDocRef = doc(db, "ships", shipId);
             
-            // Sync settings
             const localSettings = getLocalData(`settings_${shipId}`, null);
-            if (localSettings) {
-                batch.set(shipDocRef, localSettings, { merge: true });
-            }
+            if (localSettings) batch.set(shipDocRef, localSettings, { merge: true });
 
-            // Sync logbook config
             const localLogbook = getLocalData(`logbookSections_${shipId}`, null);
-            if (localLogbook) {
-                 batch.set(doc(shipDocRef, 'config', 'logbook'), { sections: localLogbook });
-            }
+            if (localLogbook) batch.set(doc(shipDocRef, 'config', 'logbook'), { sections: localLogbook });
             
-            // Sync collections
             const collectionsToSync = ['inventory', 'logs', 'activityLog'];
             for (const collName of collectionsToSync) {
                 const localItems = getLocalData(`${collName}_${shipId}`, []);
+                const fsQuery = query(collection(shipDocRef, collName));
+                const fsSnap = await getDocs(fsQuery);
+                const fsIds = new Set(fsSnap.docs.map(d => d.id));
+                
                 for (const item of localItems) {
-                    const docRef = doc(collection(shipDocRef, collName), item.id);
-                    batch.set(docRef, item);
+                    if (!fsIds.has(item.id)) {
+                        console.log(`Syncing new item ${item.id} to ${collName}`);
+                        const docRef = doc(collection(shipDocRef, collName), item.id);
+                        batch.set(docRef, item);
+                    }
                 }
             }
 
@@ -207,17 +213,30 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const isLoggedIn = user && user.uid !== 'guest-user';
         
         if (!isLoggedIn || !db) {
-            loadLocalData();
-            return; // Stop here for guest users or if firebase is off
+            loadInitialData(); // Ensure local data is loaded for guest
+            return;
         }
 
         // --- Logged-in user logic ---
-        syncLocalToFirebase(); // Sync local changes on login
+        syncLocalToFirebase();
 
         const unsubscribes: Unsubscribe[] = [];
         const shipDocRef = doc(db, "ships", shipId);
         setIsSyncing(true);
 
+        const setupListener = <T,>(collName: string, stateSetter: React.Dispatch<React.SetStateAction<T[]>>, loadingSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
+            const q = query(collection(shipDocRef, collName), orderBy('timestamp', 'desc'));
+            return onSnapshot(q, (snap) => {
+                const items = snap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as T[];
+                stateSetter(items);
+                setLocalData(`${collName}_${shipId}`, items);
+                loadingSetter(false);
+            }, (error) => {
+                console.error(`Error on ${collName} listener:`, error);
+                loadingSetter(false);
+            });
+        };
+        
         // Settings
         unsubscribes.push(onSnapshot(shipDocRef, (snap) => {
             const data = snap.exists() ? convertDocTimestamps(snap.data()) : getInitialData().settings;
@@ -226,31 +245,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setSettingsLoading(false);
         }));
 
-        // Inventory
+        // Inventory (sorted by name)
         unsubscribes.push(onSnapshot(collection(shipDocRef, 'inventory'), (snap) => {
-            const items = snap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as InventoryItem[];
-            setInventory(items.sort((a, b) => a.name.localeCompare(b.name)));
-            setLocalData(`inventory_${shipId}`, items);
+            const items = snap.docs.map(d => ({ id: d.id, ...d.data() })) as InventoryItem[];
+            const sortedItems = items.sort((a,b) => a.name.localeCompare(b.name));
+            setInventory(sortedItems);
+            setLocalData(`inventory_${shipId}`, sortedItems);
             setInventoryLoading(false);
         }));
 
         // Logs
-        const logsQuery = query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'));
-        unsubscribes.push(onSnapshot(logsQuery, (snap) => {
-            const logsData = snap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
-            setLogs(logsData);
-            setLocalData(`logs_${shipId}`, logsData);
-            setLogsLoading(false);
-        }));
-
+        unsubscribes.push(setupListener<EngineLog>('logs', setLogs, setLogsLoading));
+        
         // Activity Log
-        const activityQuery = query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'));
-        unsubscribes.push(onSnapshot(activityQuery, (snap) => {
-            const activities = snap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
-            setActivityLog(activities);
-            setLocalData(`activityLog_${shipId}`, activities);
-            setActivityLogLoading(false);
-        }));
+        unsubscribes.push(setupListener<ActivityLog>('activityLog', setActivityLog, setActivityLogLoading));
 
         // Logbook Sections
         unsubscribes.push(onSnapshot(doc(shipDocRef, 'config', 'logbook'), (snap) => {
@@ -260,7 +268,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setLogbookLoading(false);
         }));
         
-        // This is a rough way to check if initial sync is done.
         Promise.all([
            getDoc(shipDocRef),
            getDocs(collection(shipDocRef, 'inventory')),
@@ -269,25 +276,22 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             unsubscribes.forEach(unsub => unsub());
         };
-    }, [user, authLoading, loadLocalData, shipId, syncLocalToFirebase]);
+    }, [user, authLoading, shipId, loadInitialData, syncLocalToFirebase]);
 
-    const performWrite = async (localUpdateFn: (currentData?: any) => any, firebaseWriteFn?: (shipDocRef: any) => Promise<any>, collectionKey?: string) => {
-        if (collectionKey) {
-            const currentLocalData = getLocalData(`${collectionKey}_${shipId}`, []);
-            const updatedData = localUpdateFn(currentLocalData);
-            setLocalData(`${collectionKey}_${shipId}`, updatedData);
-        } else {
-            const updatedData = localUpdateFn();
-            // This is for settings/logbook which are not collections
-        }
-        
+    const performWrite = async (
+        updateLocalState: () => void,
+        localDataKey: string,
+        firebaseWriteFn?: () => Promise<any>
+    ) => {
+        // Optimistically update UI
+        updateLocalState();
+
         if (db && user && user.uid !== 'guest-user' && firebaseWriteFn) {
             try {
-                const shipDocRef = doc(db, "ships", shipId);
-                await firebaseWriteFn(shipDocRef);
-            } catch(error) {
-                console.error("Firebase write failed:", error);
-                // The change is already saved locally, so it will sync later.
+                await firebaseWriteFn();
+            } catch (error) {
+                console.error("Firebase write failed, but data is saved locally:", error);
+                // Data is already saved locally and will sync on next app load
             }
         }
     };
@@ -295,80 +299,111 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     // --- Mutators ---
 
     const updateSettings = async (newSettings: Partial<AppSettings>) => {
-        const localUpdateFn = () => {
-            const current = settings ? { ...settings } : { ...getInitialData().settings };
-            const updated = { ...current, ...newSettings };
-            setSettings(updated);
-            setLocalData(`settings_${shipId}`, updated);
-            return updated;
+        const updateFn = () => {
+            setSettings(prev => {
+                const updated = { ...(prev || getInitialData().settings), ...newSettings };
+                setLocalData(`settings_${shipId}`, updated);
+                return updated;
+            });
         };
-        const firebaseWriteFn = () => setDoc(doc(db, "ships", shipId), newSettings, { merge: true });
-        await performWrite(localUpdateFn, firebaseWriteFn);
+        const firebaseFn = () => setDoc(doc(db, "ships", shipId), newSettings, { merge: true });
+        await performWrite(updateFn, `settings_${shipId}`, firebaseFn);
     };
 
     const addLog = async (logData: Omit<EngineLog, 'id'>) => {
         const newLogId = `log_${Date.now()}`;
-        const newLog = { ...logData, id: newLogId, timestamp: logData.timestamp };
+        const newLog = { ...logData, id: newLogId };
         
-        setLogs(prev => [newLog, ...prev].sort((a, b) => (b.timestamp as Date).getTime() - (a.timestamp as Date).getTime()) as EngineLog[]);
+        const updateFn = () => {
+            setLogs(prev => {
+                const updated = [newLog as EngineLog, ...prev].sort((a, b) => (new Date(b.timestamp as string)).getTime() - (new Date(a.timestamp as string)).getTime());
+                setLocalData(`logs_${shipId}`, updated);
+                return updated;
+            });
+        };
+        const firebaseFn = () => setDoc(doc(db, 'ships', shipId, 'logs', newLogId), { ...logData, timestamp: Timestamp.fromDate(logData.timestamp) });
         
-        const localUpdateFn = (current: EngineLog[]) => [newLog, ...current];
-        const firebaseWriteFn = (shipDocRef: any) => setDoc(doc(shipDocRef, 'logs', newLogId), { ...logData, timestamp: Timestamp.fromDate(logData.timestamp) });
-        
-        await performWrite(localUpdateFn, firebaseWriteFn, 'logs');
+        await performWrite(updateFn, `logs_${shipId}`, firebaseFn);
         return newLogId;
     };
     
     const deleteLog = async (logId: string) => {
-        setLogs(prev => prev.filter(l => l.id !== logId));
-        const localUpdateFn = (current: EngineLog[]) => current.filter(l => l.id !== logId);
-        const firebaseWriteFn = (shipDocRef: any) => deleteDoc(doc(shipDocRef, 'logs', logId));
-        await performWrite(localUpdateFn, firebaseWriteFn, 'logs');
+        const updateFn = () => {
+            setLogs(prev => {
+                const updated = prev.filter(l => l.id !== logId);
+                setLocalData(`logs_${shipId}`, updated);
+                return updated;
+            });
+        };
+        const firebaseFn = () => deleteDoc(doc(db, 'ships', shipId, 'logs', logId));
+        await performWrite(updateFn, `logs_${shipId}`, firebaseFn);
     };
 
     const addInventoryItem = async (itemData: Omit<InventoryItem, 'id'>) => {
         const newItemId = `inv_${Date.now()}`;
         const newItem = { ...itemData, id: newItemId };
         
-        setInventory(prev => [...prev, newItem].sort((a,b) => a.name.localeCompare(b.name)));
-        
-        const localUpdateFn = (current: InventoryItem[]) => [...current, newItem];
-        const firebaseWriteFn = (shipDocRef: any) => setDoc(doc(shipDocRef, 'inventory', newItemId), itemData);
-        await performWrite(localUpdateFn, firebaseWriteFn, 'inventory');
+        const updateFn = () => {
+            setInventory(prev => {
+                const updated = [...prev, newItem].sort((a,b) => a.name.localeCompare(b.name));
+                setLocalData(`inventory_${shipId}`, updated);
+                return updated;
+            });
+        };
+        const firebaseFn = () => setDoc(doc(db, 'ships', shipId, 'inventory', newItemId), itemData);
+        await performWrite(updateFn, `inventory_${shipId}`, firebaseFn);
     };
 
     const updateInventoryItem = async (itemId: string, updates: Partial<InventoryItem>) => {
-        setInventory(prev => prev.map(item => item.id === itemId ? { ...item, ...updates } : item));
-        const localUpdateFn = (current: InventoryItem[]) => current.map(item => item.id === itemId ? { ...item, ...updates } : item);
-        const firebaseWriteFn = (shipDocRef: any) => updateDoc(doc(shipDocRef, 'inventory', itemId), updates);
-        await performWrite(localUpdateFn, firebaseWriteFn, 'inventory');
+        const updateFn = () => {
+            setInventory(prev => {
+                const updated = prev.map(item => item.id === itemId ? { ...item, ...updates } : item);
+                setLocalData(`inventory_${shipId}`, updated);
+                return updated;
+            });
+        };
+        const firebaseFn = () => updateDoc(doc(db, 'ships', shipId, 'inventory', itemId), updates);
+        await performWrite(updateFn, `inventory_${shipId}`, firebaseFn);
     };
     
     const deleteInventoryItem = async (itemId: string) => {
-        setInventory(prev => prev.filter(item => item.id !== itemId));
-        const localUpdateFn = (current: InventoryItem[]) => current.filter(item => item.id !== itemId);
-        const firebaseWriteFn = (shipDocRef: any) => deleteDoc(doc(shipDocRef, 'inventory', itemId));
-        await performWrite(localUpdateFn, firebaseWriteFn, 'inventory');
+        const updateFn = () => {
+            setInventory(prev => {
+                const updated = prev.filter(item => item.id !== itemId);
+                setLocalData(`inventory_${shipId}`, updated);
+                return updated;
+            });
+        };
+        const firebaseFn = () => deleteDoc(doc(db, 'ships', shipId, 'inventory', itemId));
+        await performWrite(updateFn, `inventory_${shipId}`, firebaseFn);
     };
 
     const addActivityLog = async (activityData: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         const newActivityId = `act_${Date.now()}`;
-        const newActivity = { ...activityData, id: newActivityId, timestamp: activityData.timestamp };
+        const newActivity = { ...activityData, id: newActivityId };
 
-        setActivityLog(prev => [newActivity, ...prev].sort((a,b) => (b.timestamp as Date).getTime() - (a.timestamp as Date).getTime()) as ActivityLog[]);
-        
-        const localUpdateFn = (current: ActivityLog[]) => [newActivity, ...current];
-        const firebaseWriteFn = (shipDocRef: any) => setDoc(doc(shipDocRef, 'activityLog', newActivityId), { ...activityData, timestamp: Timestamp.fromDate(activityData.timestamp) });
-        await performWrite(localUpdateFn, firebaseWriteFn, 'activityLog');
+        const updateFn = () => {
+            setActivityLog(prev => {
+                const updated = [newActivity as ActivityLog, ...prev].sort((a, b) => (new Date(b.timestamp as string)).getTime() - (new Date(a.timestamp as string)).getTime());
+                setLocalData(`activityLog_${shipId}`, updated);
+                return updated;
+            });
+        };
+        const firebaseFn = () => setDoc(doc(db, 'ships', shipId, 'activityLog', newActivityId), { ...activityData, timestamp: Timestamp.fromDate(activityData.timestamp) });
+        await performWrite(updateFn, `activityLog_${shipId}`, firebaseFn);
     };
     
     const updateLogbookSections = async (sections: LogSection[]) => {
-        setLogbookSections(sections);
-        const localUpdateFn = () => setLocalData(`logbookSections_${shipId}`, sections);
-        const firebaseWriteFn = () => setDoc(doc(db, "ships", shipId, 'config', 'logbook'), { sections });
-        await performWrite(localUpdateFn, firebaseWriteFn);
+        const updateFn = () => {
+            setLogbookSections(sections);
+            setLocalData(`logbookSections_${shipId}`, sections);
+        };
+        const firebaseFn = () => setDoc(doc(db, "ships", shipId, 'config', 'logbook'), { sections });
+        await performWrite(updateFn, `logbookSections_${shipId}`, firebaseFn);
     };
     
+    const loading = settingsLoading || inventoryLoading || logsLoading || activityLogLoading || logbookLoading;
+
     const data: DataContextType = {
         settings,
         logbookSections,
@@ -389,6 +424,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         activityLogLoading,
         logbookLoading,
         isSyncing,
+        loading,
     };
 
     return (
