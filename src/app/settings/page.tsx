@@ -14,6 +14,7 @@ import { AppHeader } from '@/components/app-header';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useData } from '@/hooks/use-data';
+import { useAuth } from '@/hooks/use-auth';
 
 const settingsSchema = z.object({
   shipName: z.string().min(1, 'Ship name is required.'),
@@ -25,8 +26,14 @@ const newOfficerSchema = z.object({
   name: z.string().min(1, 'Officer name is required.'),
 });
 
+const loginSchema = z.object({
+  email: z.string().email('Invalid email address.'),
+  password: z.string().min(1, 'Password is required'),
+});
+
 export default function SettingsPage() {
   const { settings, updateSettings } = useData();
+  const { user, login, logout } = useAuth();
   const { toast } = useToast();
 
   const settingsForm = useForm<z.infer<typeof settingsSchema>>({
@@ -43,10 +50,14 @@ export default function SettingsPage() {
     }
   }, [settings, settingsForm]);
 
-
   const newOfficerForm = useForm<z.infer<typeof newOfficerSchema>>({
     resolver: zodResolver(newOfficerSchema),
     defaultValues: { name: '' },
+  });
+
+  const loginForm = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
   });
 
   const handleUpdateSettings = async (values: z.infer<typeof settingsSchema>) => {
@@ -81,6 +92,20 @@ export default function SettingsPage() {
     }
   };
 
+  const handleLogin = async (values: z.infer<typeof loginSchema>) => {
+    try {
+      await login(values.email, values.password);
+      toast({ title: 'Login Successful', description: 'Data sync is now active.' });
+      loginForm.reset();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Login Failed',
+        description: error.message || 'Invalid email or password.',
+      });
+    }
+  };
+
   if (!settings) {
       return (
           <>
@@ -90,10 +115,46 @@ export default function SettingsPage() {
       )
   }
 
+  const isLoggedIn = user?.uid !== 'guest-user';
+
   return (
     <div className="flex flex-col gap-6">
       <AppHeader />
       <div className="grid gap-6 md:grid-cols-2">
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Account & Sync</CardTitle>
+            <CardDescription>Login to sync your data to the cloud.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoggedIn ? (
+              <div className="space-y-4">
+                <p className="text-sm">You are logged in as <span className="font-semibold">{user?.email}</span>.</p>
+                <p className="text-sm text-muted-foreground">Your data is being synced automatically when online.</p>
+                <Button variant="outline" onClick={logout}>
+                  <Icons.logout className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <Form {...loginForm}>
+                <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+                  <FormField control={loginForm.control} name="email" render={({ field }) => (
+                    <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="chief@example.com" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={loginForm.control} name="password" render={({ field }) => (
+                    <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <Button type="submit" disabled={loginForm.formState.isSubmitting}>
+                    {loginForm.formState.isSubmitting ? 'Logging in...' : 'Login & Sync'}
+                  </Button>
+                </form>
+              </Form>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Ship Details</CardTitle>

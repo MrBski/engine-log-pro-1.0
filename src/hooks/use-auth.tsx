@@ -4,11 +4,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User as FirebaseUser } from 'firebase/auth';
-// import { auth } from '@/lib/firebase'; // Kita nonaktifkan firebase auth untuk sementara
+import { auth } from '@/lib/firebase';
 import { useToast } from './use-toast';
 
-// Definisikan 'auth' sebagai null untuk mode offline/publik
-const auth = null;
+const GUEST_USER = { uid: 'guest-user', email: 'guest@example.com', name: 'Guest' };
 
 interface User {
   uid: string;
@@ -20,43 +19,63 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Hardcoded user profiles. In a real app, this might come from a 'users' collection in Firestore.
+// In a real app, this might come from a 'users' collection in Firestore.
 const DEMO_USERS: { [email: string]: { name: string } } = {
   'basuki@example.com': { name: 'Basuki' },
   'chief@example.com': { name: 'Chief Engineer' },
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // Secara default, kita sediakan pengguna "Tamu" agar aplikasi bisa langsung jalan
-  const [user, setUser] = useState<User | null>({ uid: 'guest-user', email: 'guest@example.com', name: 'Guest' });
-  const [isLoading, setIsLoading] = useState(false); // Tidak ada lagi loading auth state
+  const [user, setUser] = useState<User | null>(GUEST_USER);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const { toast } = useToast();
 
-  // Logika onAuthStateChanged tidak lagi diperlukan untuk alur ini
-  // useEffect(() => { ... });
+  useEffect(() => {
+    if (!auth) {
+      // Firebase is disabled, stay in guest mode and finish loading.
+      setUser(GUEST_USER);
+      setIsLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const userEmail = firebaseUser.email || 'unknown@example.com';
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          name: DEMO_USERS[userEmail]?.name || 'Logged In User',
+        });
+      } else {
+        // No user is logged in, default to guest user.
+        setUser(GUEST_USER);
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const login = async (email: string, password: string) => {
-    toast({ variant: 'destructive', title: 'Not Implemented', description: 'Login is currently disabled.' });
-    // Logika login Firebase bisa ditambahkan di sini nanti saat sinkronisasi diaktifkan
-    // Contoh:
-    // try {
-    //   if (!auth) throw new Error("Firebase is not configured.");
-    //   await signInWithEmailAndPassword(auth, email, password);
-    //   router.push('/');
-    // } catch (error: any) { ... }
+    if (!auth) {
+      throw new Error("Firebase is not enabled. Cannot log in.");
+    }
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged will handle setting the user state
   };
 
   const logout = async () => {
-    toast({ title: 'Logged Out', description: 'You have been logged out.' });
-    // Logika logout Firebase bisa ditambahkan di sini nanti
-    // setUser(null) // kembali ke guest
-    // router.push('/')
+    if (!auth) {
+      console.warn("Firebase is not enabled. Cannot log out.");
+      return;
+    }
+    await signOut(auth);
+    // onAuthStateChanged will handle setting the user back to guest
   };
 
   return (

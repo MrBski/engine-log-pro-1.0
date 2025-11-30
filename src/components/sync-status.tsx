@@ -6,8 +6,10 @@ import { Icons } from './icons';
 import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/use-auth';
 
 export function SyncStatus() {
+  const { user } = useAuth();
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
@@ -20,30 +22,34 @@ export function SyncStatus() {
     
     const handleOnline = () => {
       setIsOnline(true);
-      setIsSyncing(true);
-      toast({
-        title: "Connection Restored",
-        description: "Attempting to sync local data...",
-      });
-
-      // Simulate sync process
-      setTimeout(() => {
-        setIsSyncing(false);
+      if (user?.uid !== 'guest-user') {
+        setIsSyncing(true);
         toast({
-          title: "Sync Complete",
-          description: "Your data is now up-to-date.",
+          title: "Connection Restored",
+          description: "Attempting to sync cloud data...",
         });
-      }, 3000);
+
+        // Simulate sync process
+        setTimeout(() => {
+          setIsSyncing(false);
+          toast({
+            title: "Sync Complete",
+            description: "Your data is now up-to-date.",
+          });
+        }, 3000);
+      }
     };
 
     const handleOffline = () => {
       setIsOnline(false);
       setIsSyncing(false);
-      toast({
-        variant: "destructive",
-        title: "Connection Lost",
-        description: "You are now in offline mode. Changes will be saved locally.",
-      });
+      if (user?.uid !== 'guest-user') {
+        toast({
+          variant: "destructive",
+          title: "Connection Lost",
+          description: "You are now in offline mode. Changes will be saved locally.",
+        });
+      }
     };
 
     window.addEventListener('online', handleOnline);
@@ -53,7 +59,12 @@ export function SyncStatus() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline',handleOffline);
     };
-  }, [toast]);
+  }, [toast, user]);
+
+  // Hide the indicator if user is not logged in (is a guest)
+  if (user?.uid === 'guest-user') {
+    return null;
+  }
 
   let statusText = "Offline";
   let StatusIcon = Icons.wifiOff;
