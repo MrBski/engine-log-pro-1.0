@@ -30,20 +30,14 @@ const getUserName = (firebaseUser: FirebaseUser | null): string => {
     if (firebaseUser.displayName) return firebaseUser.displayName;
     if (firebaseUser.email) {
         const emailName = firebaseUser.email.split('@')[0];
+        // Capitalize the first letter and replace separators with space
         return emailName.replace(/[\._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
     return 'User';
 }
 
-// Helper to get a ship ID from an email address
-const getShipIdFromEmail = (email: string | null): string => {
-    if (!email) return GUEST_SHIP_ID;
-    const match = email.match(/@([^.]+)\.?/);
-    return match ? match[1] : GUEST_SHIP_ID;
-}
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(GUEST_USER);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -59,7 +53,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           name: getUserName(firebaseUser),
-          shipId: getShipIdFromEmail(firebaseUser.email),
+          // Revert to a single, hardcoded ship ID for all logged-in users.
+          shipId: GUEST_SHIP_ID, 
         });
       } else {
         setUser(GUEST_USER);
@@ -80,6 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     if (!auth) {
       console.warn("Firebase is not enabled. Cannot log out.");
+      setUser(GUEST_USER);
       return;
     }
     await signOut(auth);
