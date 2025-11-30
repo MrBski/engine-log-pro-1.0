@@ -24,11 +24,19 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// In a real app, this might come from a 'users' collection in Firestore.
-const DEMO_USERS: { [email: string]: { name: string } } = {
-  'basuki@example.com': { name: 'Basuki' },
-  'chief@example.com': { name: 'Chief Engineer' },
-};
+// Helper function to extract a user-friendly name
+const getUserName = (firebaseUser: FirebaseUser | null): string => {
+    if (!firebaseUser) return 'Guest';
+    if (firebaseUser.displayName) return firebaseUser.displayName;
+    if (firebaseUser.email) {
+        // 'user.name@example.com' -> 'user.name'
+        const emailName = firebaseUser.email.split('@')[0];
+        // 'user.name' -> 'User Name'
+        return emailName.replace(/[\._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    return 'User';
+}
+
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(GUEST_USER);
@@ -45,11 +53,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        const userEmail = firebaseUser.email || 'unknown@example.com';
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email,
-          name: DEMO_USERS[userEmail]?.name || 'Logged In User',
+          name: getUserName(firebaseUser),
         });
       } else {
         // No user is logged in, default to guest user.
