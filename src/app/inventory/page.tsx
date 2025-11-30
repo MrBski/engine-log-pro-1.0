@@ -140,14 +140,14 @@ export default function InventoryPage() {
     <>
       <AppHeader />
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle>Inventory</CardTitle>
             <CardDescription>Manage all parts and supplies.</CardDescription>
           </div>
           <div className="flex gap-2">
             <Dialog open={isUseDialogOpen} onOpenChange={setIsUseDialogOpen}>
-              <DialogTrigger asChild><Button variant="outline"><Icons.minus className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
+              <DialogTrigger asChild><Button variant="outline" className="flex-1"><Icons.minus className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Use Inventory Item</DialogTitle>
@@ -180,7 +180,7 @@ export default function InventoryPage() {
               </DialogContent>
             </Dialog>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild><Button><Icons.plus className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
+              <DialogTrigger asChild><Button className="flex-1"><Icons.plus className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Add New Inventory Item</DialogTitle></DialogHeader>
                 <Form {...addForm}><form onSubmit={addForm.handleSubmit(handleAddItem)} className="space-y-4">
