@@ -122,9 +122,23 @@ export default function InventoryPage() {
   };
   
   const handleDeleteItem = async (itemId: string) => {
+    const itemToDelete = inventory.find(item => item.id === itemId);
+    if (!itemToDelete) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not find item to delete.' });
+      return;
+    }
+
     try {
       await deleteInventoryItem(itemId);
-      toast({ title: 'Success', description: 'Item has been deleted.' });
+      await addActivityLog({
+        type: 'inventory',
+        timestamp: new Date(),
+        name: itemToDelete.name,
+        officer: user?.name || 'System',
+        notes: `Deleted item "${itemToDelete.name}" from stock.`,
+        category: itemToDelete.category,
+      });
+      toast({ title: 'Success', description: `Item "${itemToDelete.name}" has been deleted.` });
     } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete item.' });
     }
