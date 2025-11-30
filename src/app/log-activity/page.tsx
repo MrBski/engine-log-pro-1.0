@@ -33,10 +33,19 @@ const sectionColors: { [key: string]: string } = {
     'Fuel Consumption': 'bg-orange-600',
 };
 
-const safeToDate = (timestamp: Date | string | undefined): Date | null => {
+const safeToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
-    if (typeof timestamp === 'string') return new Date(timestamp);
+    // Handle Firestore Timestamp object
+    if (typeof timestamp === 'object' && timestamp.toDate) {
+      return timestamp.toDate();
+    }
+    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
     return null;
 };
 
@@ -277,15 +286,16 @@ export default function LogActivityPage() {
         <>
             <AppHeader />
             <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                    <Icons.history className="h-6 w-6 text-primary" />
-                    <h2 className="text-2xl font-bold text-foreground">Log Activity</h2>
-                </div>
-
-                {loading && <p>Loading activities...</p>}
+                {loading && (
+                    <div className="text-center py-10">
+                        <p>Loading activities...</p>
+                    </div>
+                )}
                 
                 {!loading && sortedActivities.length === 0 && (
-                    <p>No activities recorded yet.</p>
+                    <Card className="text-center p-10">
+                        <p className="text-muted-foreground">No activities recorded yet.</p>
+                    </Card>
                 )}
 
                 <div className="space-y-2">

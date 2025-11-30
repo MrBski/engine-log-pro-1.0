@@ -22,8 +22,8 @@ export function AppHeader() {
     if (parts.length === 0) {
       return (
           <div>
-            <h1 className="text-2xl font-semibold">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-xl font-semibold md:text-2xl">Dashboard</h1>
+            <p className="hidden text-sm text-muted-foreground md:block">
               Welcome to {settings.shipName}.
             </p>
           </div>
@@ -41,21 +41,21 @@ export function AppHeader() {
 
     return (
         <div>
-            <h1 className="text-2xl font-semibold">{name}</h1>
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <h1 className="text-xl font-semibold md:text-2xl">{name}</h1>
+            <p className="hidden text-sm text-muted-foreground md:block">{description}</p>
         </div>
     )
   }
 
   return (
-    <header className="sticky top-0 z-10 flex h-20 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm lg:px-6">
+    <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:h-20 lg:px-6">
       <div className="flex items-center gap-4">
-        <Icons.logo className="size-8 text-primary" />
+        <Icons.logo className="hidden size-8 text-primary md:block" />
         {getBreadcrumb()}
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4">
         <SyncStatus />
-        <Avatar className="size-10">
+        <Avatar className="size-8 md:size-10">
             <AvatarImage src={`https://picsum.photos/seed/${user?.name}/40/40`} data-ai-hint="profile picture" alt={user?.name} />
             <AvatarFallback>{user?.name.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
