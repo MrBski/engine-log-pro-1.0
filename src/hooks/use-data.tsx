@@ -89,12 +89,38 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 const getLocalData = (key: string, defaultValue: any) => {
     if (typeof window === 'undefined') return defaultValue;
     const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : defaultValue;
+    // Ensure timestamps stored as strings are converted to Date objects
+    try {
+      const parsed = saved ? JSON.parse(saved) : defaultValue;
+      return convertTimestampsInLocalStorage(parsed);
+    } catch (e) {
+        console.error("Failed to parse local data for key:", key, e);
+        return defaultValue;
+    }
 };
 
 const setLocalData = (key: string, value: any) => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(key, JSON.stringify(value));
+};
+
+const convertTimestampsInLocalStorage = (data: any): any => {
+    if (typeof data === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(data)) {
+        return new Date(data);
+    }
+    if (Array.isArray(data)) {
+        return data.map(convertTimestampsInLocalStorage);
+    }
+    if (data !== null && typeof data === 'object') {
+        const newObj: { [key: string]: any } = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                newObj[key] = convertTimestampsInLocalStorage(data[key]);
+            }
+        }
+        return newObj;
+    }
+    return data;
 };
 
 
@@ -119,18 +145,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const loadLocalData = useCallback(() => {
         const initialData = getInitialData();
-        setSettings(convertDocTimestamps(getLocalData(`settings_${shipId}`, initialData.settings)));
-        setInventory(convertDocTimestamps(getLocalData(`inventory_${shipId}`, initialData.inventory)));
-        setLogs(convertDocTimestamps(getLocalData(`logs_${shipId}`, initialData.logs)));
-        setActivityLog(convertDocTimestamps(getLocalData(`activityLog_${shipId}`, initialData.activityLog)));
-        setLogbookSections(convertDocTimestamps(getLocalData(`logbookSections_${shipId}`, initialData.logbookSections)));
+        setSettings(getLocalData(`settings_${shipId}`, initialData.settings));
+        setInventory(getLocalData(`inventory_${shipId}`, initialData.inventory));
+        setLogs(getLocalData(`logs_${shipId}`, initialData.logs));
+        const activities = getLocalData(`activityLog_${shipId}`, initialData.activityLog);
+        setActivityLog(activities.sort((a: ActivityLog, b: ActivityLog) => (b.timestamp as Date).getTime() - (a.timestamp as Date).getTime()));
+        setLogbookSections(getLocalData(`logbookSections_${shipId}`, initialData.logbookSections));
         
         setSettingsLoading(false);
-        inventoryLoading && setInventoryLoading(false);
-        logsLoading && setLogsLoading(false);
-        activityLogLoading && setActivityLogLoading(false);
-        logbookLoading && setLogbookLoading(false);
-    }, [shipId, inventoryLoading, logsLoading, activityLogLoading, logbookLoading]);
+        setInventoryLoading(false);
+        setLogsLoading(false);
+        setActivityLogLoading(false);
+        setLogbookLoading(false);
+    }, [shipId]);
 
     const syncLocalToFirebase = useCallback(async () => {
         if (!db || !user || user.uid === 'guest-user') return;
@@ -281,9 +308,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const addLog = async (logData: Omit<EngineLog, 'id'>) => {
         const newLogId = `log_${Date.now()}`;
-        const newLog = { ...logData, id: newLogId, timestamp: logData.timestamp.toISOString() };
+        const newLog = { ...logData, id: newLogId, timestamp: logData.timestamp };
         
-        setLogs(prev => [newLog, ...prev].sort((a, b) => new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime()) as EngineLog[]);
+        setLogs(prev => [newLog, ...prev].sort((a, b) => (b.timestamp as Date).getTime() - (a.timestamp as Date).getTime()) as EngineLog[]);
         
         const localUpdateFn = (current: EngineLog[]) => [newLog, ...current];
         const firebaseWriteFn = (shipDocRef: any) => setDoc(doc(shipDocRef, 'logs', newLogId), { ...logData, timestamp: Timestamp.fromDate(logData.timestamp) });
@@ -326,9 +353,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const addActivityLog = async (activityData: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         const newActivityId = `act_${Date.now()}`;
-        const newActivity = { ...activityData, id: newActivityId, timestamp: activityData.timestamp.toISOString() };
+        const newActivity = { ...activityData, id: newActivityId, timestamp: activityData.timestamp };
 
-        setActivityLog(prev => [newActivity, ...prev] as ActivityLog[]);
+        setActivityLog(prev => [newActivity, ...prev].sort((a,b) => (b.timestamp as Date).getTime() - (a.timestamp as Date).getTime()) as ActivityLog[]);
         
         const localUpdateFn = (current: ActivityLog[]) => [newActivity, ...current];
         const firebaseWriteFn = (shipDocRef: any) => setDoc(doc(shipDocRef, 'activityLog', newActivityId), { ...activityData, timestamp: Timestamp.fromDate(activityData.timestamp) });
@@ -378,5 +405,3 @@ export const useData = () => {
   }
   return context;
 };
-
-    

@@ -36,7 +36,6 @@ const sectionColors: { [key: string]: string } = {
 const safeToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
-    // Firestore Timestamps are converted in useData, so we primarily handle strings from localStorage
     if (typeof timestamp === 'string' || typeof timestamp === 'number') {
       const date = new Date(timestamp);
       if (!isNaN(date.getTime())) {
@@ -234,8 +233,13 @@ export default function LogActivityPage() {
         }
     };
 
-    // The data is already sorted by timestamp desc from useData hook.
-    const sortedActivities = activityLog;
+    // Explicitly sort here to ensure order is always correct
+    const sortedActivities = [...activityLog].sort((a, b) => {
+        const dateA = safeToDate(a.timestamp);
+        const dateB = safeToDate(b.timestamp);
+        if (!dateA || !dateB) return 0;
+        return dateB.getTime() - dateA.getTime();
+    });
 
     const getIcon = (type: ActivityLog['type']) => {
         switch (type) {
@@ -338,5 +342,3 @@ export default function LogActivityPage() {
         </>
     )
 }
-
-    
