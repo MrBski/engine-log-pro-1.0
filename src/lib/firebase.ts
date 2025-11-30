@@ -1,7 +1,7 @@
-// This is a placeholder file. The contents will be filled in by the next step.
+
 import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 
 // This config now reads from environment variables for better security.
 const firebaseConfig: FirebaseOptions = {
@@ -24,5 +24,21 @@ const app = USE_FIREBASE && isConfigValid && getApps().length === 0 ? initialize
 // Conditionally export auth and db
 const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
+
+// Enable offline persistence if db is initialized
+if (db) {
+  enableIndexedDbPersistence(db)
+    .catch((err) => {
+      if (err.code == 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time.
+        console.warn('Firestore persistence failed: Multiple tabs open.');
+      } else if (err.code == 'unimplemented') {
+        // The current browser does not support all of the
+        // features required to enable persistence
+        console.warn('Firestore persistence is not supported in this browser.');
+      }
+    });
+}
+
 
 export { auth, db };
