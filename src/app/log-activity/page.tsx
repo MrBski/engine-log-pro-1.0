@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import { type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
@@ -37,358 +38,326 @@ const safeToDate = (timestamp: Timestamp | Date | string | undefined): Date | nu
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
     if (typeof timestamp === 'string') return new Date(timestamp);
-    "use client";
-
-    import { useState, useEffect } from "react";
-    import { type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
-    import { AppHeader } from "@/components/app-header";
-    import { Card } from "@/components/ui/card";
-    import { Icons } from "@/components/icons";
-    import {
-        Dialog,
-        DialogContent,
-        DialogHeader,
-        DialogTitle,
-        DialogTrigger,
-        DialogFooter,
-        DialogClose,
-    } from '@/components/ui/dialog';
-    import { Button } from "@/components/ui/button";
-    import { useToast } from "@/hooks/use-toast";
-    import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-    import { cn } from "@/lib/utils";
-    import { useRef, useCallback } from "react";
-    import * as htmlToImage from 'html-to-image';
-    import { useData } from "@/hooks/use-data";
-    import type { Timestamp } from "firebase/firestore";
-
-    const sectionColors: { [key: string]: string } = {
-        'M.E Port Side': 'bg-red-600',
-        'M.E Starboard': 'bg-green-600',
-        'Generator': 'bg-sky-600',
-        'Daily Tank': 'bg-purple-600',
-        'Flowmeter': 'bg-amber-600',
-        'Others': 'bg-slate-500',
-        'Fuel Consumption': 'bg-orange-600',
-    };
-
-    const safeToDate = (timestamp: Timestamp | Date | string | undefined): Date | null => {
-        if (!timestamp) return null;
-        if (timestamp instanceof Date) return timestamp;
-        if (typeof timestamp === 'string') return new Date(timestamp);
-        if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
-            return timestamp.toDate();
-        }
-        return null;
-    };
-
-    const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions = {}): string => {
-        if (!date) return '...';
-        try {
-            // Use a fixed locale to prevent hydration mismatches between server and client
-            return date.toLocaleString('id-ID', options);
-        } catch {
-            return 'Invalid Date';
-        }
+    // This is the important part for Firestore Timestamps
+    if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+        return timestamp.toDate();
     }
+    return null;
+};
 
-    function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
-        const { toast } = useToast();
-        const printRef = useRef<HTMLDivElement>(null);
+const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions = {}): string => {
+    if (!date) return '...';
+    try {
+        // Use a fixed locale like 'id-ID' to prevent hydration mismatches
+        return date.toLocaleString('id-ID', options);
+    } catch {
+        return 'Invalid Date';
+    }
+}
 
-        const logTimestamp = safeToDate(log?.timestamp);
+function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
+    const { toast } = useToast();
+    const printRef = useRef<HTMLDivElement>(null);
 
-        const handleShare = useCallback(async () => {
-            if (!printRef.current) {
-                return;
-            }
+    const logTimestamp = safeToDate(log?.timestamp);
 
-            try {
-                const dataUrl = await htmlToImage.toPng(printRef.current, {
-                    quality: 0.95,
-                    backgroundColor: 'hsl(var(--background))',
-                    skipAutoScale: false,
-                    pixelRatio: 2
-                });
-
-                const blob = await (await fetch(dataUrl)).blob();
-                const file = new File([blob], `engine-log-${log?.id}.png`, { type: blob.type });
-
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: 'Engine Log',
-                        text: `Engine Log Entry for ${formatSafeDate(logTimestamp)}`,
-                    });
-                } else {
-                    const link = document.createElement('a');
-                    link.download = `engine-log-${log?.id}.png`;
-                    link.href = dataUrl;
-                    link.click();
-                }
-            } catch (error) {
-                console.error('oops, something went wrong!', error);
-                toast({
-                    variant: 'destructive',
-                    title: 'Failed to Share',
-                    description: 'Could not generate or share the log image.'
-                });
-            }
-        }, [log, logTimestamp, toast]);
-
-        if (!log) {
-            return (
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Log Not Found</DialogTitle>
-                    </DialogHeader>
-                    <p>Log data not found or is still syncing. Please try again in a moment.</p>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="secondary">Close</Button></DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-            )
+    const handleShare = useCallback(async () => {
+        if (!printRef.current) {
+            return;
         }
 
-        const getReadingsForSection = (title: string) => {
-            return log.readings.filter(r => r.key.startsWith(title));
+        try {
+            const dataUrl = await htmlToImage.toPng(printRef.current, {
+                quality: 0.95,
+                backgroundColor: 'hsl(var(--background))',
+                skipAutoScale: false,
+                pixelRatio: 2
+            });
+
+            const blob = await (await fetch(dataUrl)).blob();
+            const file = new File([blob], `engine-log-${log?.id}.png`, { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Engine Log',
+                    text: `Engine Log Entry for ${formatSafeDate(logTimestamp)}`,
+                });
+            } else {
+                const link = document.createElement('a');
+                link.download = `engine-log-${log?.id}.png`;
+                link.href = dataUrl;
+                link.click();
+            }
+        } catch (error) {
+            console.error('oops, something went wrong!', error);
+            toast({
+                variant: 'destructive',
+                title: 'Failed to Share',
+                description: 'Could not generate or share the log image.'
+            });
         }
+    }, [log, logTimestamp, toast]);
 
-        const sections = (logbookSections || []).map(s => ({
-            ...s,
-            readings: getReadingsForSection(s.title)
-        })).filter(s => s.readings.length > 0 && s.readings.some(r => r.value));
-
-        const renderReading = (reading: EngineReading) => (
-            <div key={reading.id} className="flex items-center border-b border-white/5 py-0.5">
-                <label className="w-1/2 font-medium text-xs text-muted-foreground">
-                    {reading.key.replace(/.*? - /g, '')}
-                </label>
-                <div className="w-1/2 text-right font-mono text-xs font-semibold">
-                    {reading.value} <span className="text-muted-foreground/50">{reading.unit}</span>
-                </div>
-            </div>
-        );
-
-        const robReading = log.readings.find(r => r.id === 'other_rob');
-        const used4HoursReading = log.readings.find(r => r.id === 'other_used');
-
-        const robValue = robReading && robReading.value ? parseFloat(robReading.value) : 0;
-        const used4HoursValue = used4HoursReading && used4HoursReading.value ? parseFloat(used4HoursReading.value) : 0;
-        const hourlyConsumption = used4HoursValue > 0 ? used4HoursValue / 4 : 0;
-
-        const robHour1 = robValue - hourlyConsumption;
-        const robHour2 = robHour1 - hourlyConsumption;
-        const robHour3 = robHour2 - hourlyConsumption;
-        const robHour4 = robHour3 - hourlyConsumption;
-
-        const hasConsumptionData = robReading && used4HoursReading && robValue > 0 && used4HoursValue > 0;
-
+    if (!log) {
         return (
-            <DialogContent className="max-w-3xl">
+            <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Engine Log Preview</DialogTitle>
+                    <DialogTitle>Log Not Found</DialogTitle>
                 </DialogHeader>
-                <div className="max-h-[80vh] overflow-y-auto p-1">
-                    <div ref={printRef} className="space-y-1 bg-card p-1 rounded-lg text-sm">
-                        <div className="font-bold text-center text-sm h-8 flex items-center justify-center bg-muted/50 rounded-md">
-                            {formatSafeDate(logTimestamp)}
-                        </div>
-                        <div className="grid md:grid-cols-2 gap-1">
-                            {sections.map(section => (
-                                <div key={section.title} className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
-                                    <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors[section.title] || 'bg-gray-500')}>
-                                        {section.title}
-                                    </h3>
-                                    {section.readings.map(renderReading)}
-                                </div>
-                            ))}
-                            {hasConsumptionData && (
-                                <div className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
-                                    <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors['Fuel Consumption'] || 'bg-gray-500')}>
-                                        USED / HOUR (-{hourlyConsumption.toFixed(2)} L/hr)
-                                    </h3>
-                                    <div className="flex items-center border-b border-white/5 py-0.5">
-                                        <label className="w-1/2 font-medium text-xs text-muted-foreground">ROB Awal</label>
-                                        <div className="w-1/2 text-right font-mono text-xs font-semibold">{robValue.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
-                                    </div>
-                                    <div className="flex items-center border-b border-white/5 py.0.5">
-                                        <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-1</label>
-                                        <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour1.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
-                                    </div>
-                                    <div className="flex items-center border-b border-white/5 py-0.5">
-                                        <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-2</label>
-                                        <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour2.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
-                                    </div>
-                                    <div className="flex items-center border-b border-white/5 py-0.5">
-                                        <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-3</label>
-                                        <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour3.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
-                                    </div>
-                                    <div className="flex items-center border-b border-white/5 py-0.5">
-                                        <label className="w-1/2 font-bold text-xs text-foreground">Jam ke-4 (ROB Akhir)</label>
-                                        <div className="w-1/2 text-right font-mono text-xs font-bold">{robHour4.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="space-y-1 pt-1">
-                            <div className="text-center space-y-0.5">
-                                <div className="h-6 text-center font-semibold flex items-center justify-center rounded-md bg-accent text-accent-foreground text-sm">
-                                    {log.officer}
-                                </div>
-                            </div>
-                            <div className="text-center font-bold p-2 rounded-md bg-muted min-h-[30px] flex items-center justify-center text-xs mt-1">
-                                {log.notes}
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
+                <p>Log data not found or is still syncing. Please try again in a moment.</p>
                 <DialogFooter>
-                    <Button variant="outline" onClick={handleShare}>
-                        <Icons.share className="mr-2 h-4 w-4" />
-                        Share
-                    </Button>
-                    <DialogClose asChild>
-                        <Button variant="secondary">Close</Button>
-                    </DialogClose>
+                    <DialogClose asChild><Button variant="secondary">Close</Button></DialogClose>
                 </DialogFooter>
             </DialogContent>
         )
     }
 
-    export default function LogActivityPage() {
-        const { activityLog = [], deleteLog, logs = [], logbookSections = [] } = useData();
-        const { toast } = useToast();
+    const getReadingsForSection = (title: string) => {
+        return log.readings.filter(r => r.key.startsWith(title));
+    }
 
-        const handleDeleteLog = async (logId: string) => {
-            try {
-                await deleteLog(logId);
-                toast({ title: "Log Deleted", description: "The log entry has been removed." });
-            } catch (error) {
-                toast({ variant: 'destructive', title: "Error", description: "Failed to delete log." });
-            }
-        };
+    const sections = (logbookSections || []).map(s => ({
+        ...s,
+        readings: getReadingsForSection(s.title)
+    })).filter(s => s.readings.length > 0 && s.readings.some(r => r.value));
 
-        const sortedActivities = activityLog; // Already sorted by Firestore query
+    const renderReading = (reading: EngineReading) => (
+        <div key={reading.id} className="flex items-center border-b border-white/5 py-0.5">
+            <label className="w-1/2 font-medium text-xs text-muted-foreground">
+                {reading.key.replace(/.*? - /g, '')}
+            </label>
+            <div className="w-1/2 text-right font-mono text-xs font-semibold">
+                {reading.value} <span className="text-muted-foreground/50">{reading.unit}</span>
+            </div>
+        </div>
+    );
 
-        const categoryMapping: { [key: string]: string } = {
-            'main-engine': 'Inventory (ME)',
-            'generator': 'Inventory (AE)',
-            'other': 'Inventory (Others)',
-        };
+    const robReading = log.readings.find(r => r.id === 'other_rob');
+    const used4HoursReading = log.readings.find(r => r.id === 'other_used');
 
-        const getIcon = (type: ActivityLog['type']) => {
-            switch (type) {
-                case 'engine': return <Icons.file className="h-4 w-4 text-muted-foreground" />;
-                case 'inventory': return <Icons.archive className="h-4 w-4 text-muted-foreground" />;
-                case 'generator': return <Icons.zap className="h-4 w-4 text-muted-foreground" />;
-                default: return <Icons.history className="h-4 w-4 text-muted-foreground" />;
-            }
-        }
+    const robValue = robReading && robReading.value ? parseFloat(robReading.value) : 0;
+    const used4HoursValue = used4HoursReading && used4HoursReading.value ? parseFloat(used4HoursReading.value) : 0;
+    const hourlyConsumption = used4HoursValue > 0 ? used4HoursValue / 4 : 0;
 
-        const getActivityTitle = (activity: ActivityLog) => {
-            switch (activity.type) {
-                case 'engine': return 'Engine Log Entry';
-                case 'inventory': return `"${activity.name}" updated`;
-                case 'generator': return 'Generator Action';
-                default: return 'Activity';
-            }
-        }
+    const robHour1 = robValue - hourlyConsumption;
+    const robHour2 = robHour1 - hourlyConsumption;
+    const robHour3 = robHour2 - hourlyConsumption;
+    const robHour4 = robHour3 - hourlyConsumption;
 
-        const getOfficerText = (activity: ActivityLog) => {
-            switch (activity.type) {
-                case 'engine': return `by ${activity.officer}`;
-                case 'inventory': return categoryMapping[activity.category || 'other'];
-                case 'generator': return `by ${activity.officer}`;
-                default: return '';
-            }
-        }
+    const hasConsumptionData = robReading && used4HoursReading && robValue > 0 && used4HoursValue > 0;
 
-        const getNotes = (activity: ActivityLog) => {
-            switch (activity.type) {
-                case 'engine': return null;
-                case 'inventory': return activity.notes;
-                case 'generator': return activity.notes;
-                default: return null;
-            }
-        }
-
-        return (
-            <>
-                <AppHeader />
-                <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                        <Icons.history className="h-6 w-6 text-primary" />
-                        <h2 className="text-2xl font-bold text-foreground">Log Activity</h2>
+    return (
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>Engine Log Preview</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[80vh] overflow-y-auto p-1">
+                <div ref={printRef} className="space-y-1 bg-card p-1 rounded-lg text-sm">
+                    <div className="font-bold text-center text-sm h-8 flex items-center justify-center bg-muted/50 rounded-md">
+                        {formatSafeDate(logTimestamp, { dateStyle: 'full', timeStyle: 'short' })}
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-1">
+                        {sections.map(section => (
+                            <div key={section.title} className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
+                                <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors[section.title] || 'bg-gray-500')}>
+                                    {section.title}
+                                </h3>
+                                {section.readings.map(renderReading)}
+                            </div>
+                        ))}
+                        {hasConsumptionData && (
+                            <div className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
+                                <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors['Fuel Consumption'] || 'bg-gray-500')}>
+                                    USED / HOUR (-{hourlyConsumption.toFixed(2)} L/hr)
+                                </h3>
+                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">ROB Awal</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robValue.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
+                                </div>
+                                <div className="flex items-center border-b border-white/5 py.0.5">
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-1</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour1.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
+                                </div>
+                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-2</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour2.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
+                                </div>
+                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">Jam ke-3</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-semibold">{robHour3.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
+                                </div>
+                                <div className="flex items-center border-b border-white/5 py-0.5">
+                                    <label className="w-1/2 font-bold text-xs text-foreground">Jam ke-4 (ROB Akhir)</label>
+                                    <div className="w-1/2 text-right font-mono text-xs font-bold">{robHour4.toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="space-y-2">
-                        {sortedActivities.map(activity => {
-                            const notes = getNotes(activity);
-                            const logId = activity.type === 'engine' ? activity.logId : null;
-                            const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
+                    <div className="space-y-1 pt-1">
+                        <div className="text-center space-y-0.5">
+                            <div className="h-6 text-center font-semibold flex items-center justify-center rounded-md bg-accent text-accent-foreground text-sm">
+                                {log.officer}
+                            </div>
+                        </div>
+                        <div className="text-center font-bold p-2 rounded-md bg-muted min-h-[30px] flex items-center justify-center text-xs mt-1">
+                            {log.notes}
+                        </div>
+                    </div>
 
-                            return (
-                                <Card key={activity.id} className="flex items-center justify-between p-3">
-                                    <div className="flex items-center gap-3">
-                                        {getIcon(activity.type)}
-                                        <div>
-                                            <p className="font-semibold text-sm">
-                                                {getActivityTitle(activity)}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {formatSafeDate(safeToDate(activity.timestamp), { dateStyle: 'short', timeStyle: 'short' })} - {' '}
-                                                <span className="font-medium">
-                                                    {getOfficerText(activity)}
-                                                </span>
-                                            </p>
-                                            {notes && (
-                                                <p className="text-xs text-muted-foreground">{notes}</p>
-                                            )}
-                                        </div>
-                                    </div>
+                </div>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={handleShare}>
+                    <Icons.share className="mr-2 h-4 w-4" />
+                    Share
+                </Button>
+                <DialogClose asChild>
+                    <Button variant="secondary">Close</Button>
+                </DialogClose>
+            </DialogFooter>
+        </DialogContent>
+    )
+}
 
-                                    <div className="flex items-center gap-1">
-                                        {activity.type === 'engine' && logId && (
-                                            <>
-                                                {associatedLog && (
-                                                    <Dialog>
-                                                        <DialogTrigger asChild>
-                                                            <Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button>
-                                                        </DialogTrigger>
-                                                        <LogEntryCard log={associatedLog} logbookSections={logbookSections as LogSection[]} />
-                                                    </Dialog>
-                                                )}
+export default function LogActivityPage() {
+    const { activityLog = [], deleteLog, logs = [], logbookSections = [], loading } = useData();
+    const { toast } = useToast();
 
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                                            <Icons.trash className="h-4 w-4" />
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                This action cannot be undone. This will permanently delete the log entry.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteLog(logId)}>Delete</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </>
+    const handleDeleteLog = async (logId: string) => {
+        try {
+            await deleteLog(logId);
+            toast({ title: "Log Deleted", description: "The log entry has been removed." });
+        } catch (error) {
+            toast({ variant: 'destructive', title: "Error", description: "Failed to delete log." });
+        }
+    };
+
+    const sortedActivities = activityLog;
+
+    const categoryMapping: { [key: string]: string } = {
+        'main-engine': 'Inventory (ME)',
+        'generator': 'Inventory (AE)',
+        'other': 'Inventory (Others)',
+    };
+
+    const getIcon = (type: ActivityLog['type']) => {
+        switch (type) {
+            case 'engine': return <Icons.file className="h-4 w-4 text-muted-foreground" />;
+            case 'inventory': return <Icons.archive className="h-4 w-4 text-muted-foreground" />;
+            case 'generator': return <Icons.zap className="h-4 w-4 text-muted-foreground" />;
+            default: return <Icons.history className="h-4 w-4 text-muted-foreground" />;
+        }
+    }
+
+    const getActivityTitle = (activity: ActivityLog) => {
+        switch (activity.type) {
+            case 'engine': return 'Engine Log Entry';
+            case 'inventory': return `"${activity.name}" updated`;
+            case 'generator': return 'Generator Action';
+            default: return 'Activity';
+        }
+    }
+
+    const getOfficerText = (activity: ActivityLog) => {
+        switch (activity.type) {
+            case 'engine': return `by ${activity.officer}`;
+            case 'inventory': return categoryMapping[activity.category || 'other'];
+            case 'generator': return `by ${activity.officer}`;
+            default: return '';
+        }
+    }
+
+    const getNotes = (activity: ActivityLog) => {
+        switch (activity.type) {
+            case 'engine': return null;
+            case 'inventory': return activity.notes;
+            case 'generator': return activity.notes;
+            default: return null;
+        }
+    }
+
+    return (
+        <>
+            <AppHeader />
+            <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <Icons.history className="h-6 w-6 text-primary" />
+                    <h2 className="text-2xl font-bold text-foreground">Log Activity</h2>
+                </div>
+
+                {loading && <p>Loading activities...</p>}
+                
+                {!loading && sortedActivities.length === 0 && (
+                    <p>No activities recorded yet.</p>
+                )}
+
+                <div className="space-y-2">
+                    {sortedActivities.map(activity => {
+                        const notes = getNotes(activity);
+                        const logId = activity.type === 'engine' ? activity.logId : null;
+                        const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
+
+                        return (
+                            <Card key={activity.id} className="flex items-center justify-between p-3">
+                                <div className="flex items-center gap-3">
+                                    {getIcon(activity.type)}
+                                    <div>
+                                        <p className="font-semibold text-sm">
+                                            {getActivityTitle(activity)}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {formatSafeDate(safeToDate(activity.timestamp), { dateStyle: 'short', timeStyle: 'short' })} - {' '}
+                                            <span className="font-medium">
+                                                {getOfficerText(activity)}
+                                            </span>
+                                        </p>
+                                        {notes && (
+                                            <p className="text-xs text-muted-foreground">{notes}</p>
                                         )}
                                     </div>
-                                </Card>
-                            )
-                        })}
-                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                    {activity.type === 'engine' && logId && associatedLog && (
+                                        <>
+                                            <Dialog>
+                                                <DialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button>
+                                                </DialogTrigger>
+                                                <LogEntryCard log={associatedLog} logbookSections={logbookSections as LogSection[]} />
+                                            </Dialog>
+
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                                        <Icons.trash className="h-4 w-4" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This action cannot be undone. This will permanently delete the log entry.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteLog(logId)}>Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </>
+                                    )}
+                                </div>
+                            </Card>
+                        )
+                    })}
                 </div>
-            </>
-        )
-    }
+            </div>
+        </>
+    )
+}
+
+    

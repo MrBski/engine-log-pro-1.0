@@ -107,7 +107,7 @@ export default function DashboardPage() {
   };
 
   const lowStockItems = inventory.filter(item => item.stock <= item.lowStockThreshold);
-  const latestLog = logs.length > 0 ? logs[0] : null; // Already sorted by Firestore query
+  const latestLog = logs.length > 0 ? logs[0] : null;
   const recentLogs = logs.slice(0, 5);
 
   const getReading = (log: EngineLog, key: string) => {
@@ -115,11 +115,14 @@ export default function DashboardPage() {
     return reading ? `${reading.value} ${reading.unit}` : 'N/A';
   }
 
-  const chartData = logs.slice(0, 7).reverse().map(log => ({
-    date: safeToDate(log.timestamp)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) || '',
-    rpm: parseFloat(log.readings.find(r => r.key.includes('RPM'))?.value || '0'),
-    fuel: parseFloat(log.readings.find(r => r.key.includes('Fuel'))?.value || '0'),
-  }));
+  const chartData = logs.slice(0, 7).reverse().map(log => {
+    const logDate = safeToDate(log.timestamp);
+    return {
+        date: logDate ? logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+        rpm: parseFloat(log.readings.find(r => r.key.includes('RPM'))?.value || '0'),
+        fuel: parseFloat(log.readings.find(r => r.key.includes('Fuel'))?.value || '0'),
+    }
+  });
 
   const chartConfig = {
     rpm: { label: "RPM", color: "hsl(var(--chart-1))" },
@@ -226,7 +229,7 @@ export default function DashboardPage() {
                   const logDate = safeToDate(log.timestamp);
                   return (
                     <TableRow key={log.id}>
-                      <TableCell>{logDate ? logDate.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short'}) : '...'}</TableCell>
+                      <TableCell>{logDate ? logDate.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short'}) : '...'}</TableCell>
                       <TableCell>{log.officer}</TableCell>
                       <TableCell>{getReading(log, 'RPM')}</TableCell>
                       <TableCell>{getReading(log, 'Fuel')}</TableCell>
