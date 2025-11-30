@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { AppHeader } from '@/components/app-header';
 import { useData } from '@/hooks/use-data';
+import { useAuth } from '@/hooks/use-auth';
 
 const itemSchema = z.object({
   name: z.string().min(1, "Item name is required."),
@@ -44,6 +45,7 @@ const useItemSchema = z.object({
 
 export default function InventoryPage() {
   const { inventory = [], addInventoryItem, updateInventoryItem, addActivityLog, inventoryLoading } = useData();
+  const { user } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -59,12 +61,17 @@ export default function InventoryPage() {
   });
 
   const handleAddItem = async (values: z.infer<typeof itemSchema>) => {
+    if (!user || user.uid === 'guest-user') {
+        toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to add items.' });
+        return;
+    }
     try {
       await addInventoryItem(values);
       await addActivityLog({
         type: 'inventory',
         timestamp: new Date(),
         name: values.name,
+        officer: user.name,
         notes: `Added ${values.stock} ${values.unit} to stock.`,
         category: values.category as InventoryCategory,
       });
@@ -77,6 +84,10 @@ export default function InventoryPage() {
   };
 
   const handleUseItem = async (values: z.infer<typeof useItemSchema>) => {
+    if (!user || user.uid === 'guest-user') {
+        toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to use items.' });
+        return;
+    }
     const itemToUse = inventory.find(item => item.id === values.itemId);
     if (!itemToUse) {
       useFormInstance.setError("itemId", { type: "manual", message: "Item not found." });
@@ -93,6 +104,7 @@ export default function InventoryPage() {
         type: 'inventory',
         timestamp: new Date(),
         name: itemToUse.name,
+        officer: user.name,
         notes: `Used ${values.amount} ${itemToUse.unit}.`,
         category: itemToUse.category,
       });
@@ -140,6 +152,7 @@ export default function InventoryPage() {
 
   const selectedItemForUsage = useFormInstance.watch("itemId");
   const selectedItemDetails = inventory.find(item => item.id === selectedItemForUsage);
+  const isLoggedIn = user?.uid !== 'guest-user';
 
 
   return (
@@ -153,7 +166,7 @@ export default function InventoryPage() {
           </div>
           <div className="flex gap-2">
             <Dialog open={isUseDialogOpen} onOpenChange={setIsUseDialogOpen}>
-              <DialogTrigger asChild><Button variant="outline" className="flex-1"><Icons.minus className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
+              <DialogTrigger asChild><Button variant="outline" className="flex-1" disabled={!isLoggedIn}><Icons.minus className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Use Inventory Item</DialogTitle>
@@ -186,7 +199,7 @@ export default function InventoryPage() {
               </DialogContent>
             </Dialog>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild><Button className="flex-1"><Icons.plus className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
+              <DialogTrigger asChild><Button className="flex-1" disabled={!isLoggedIn}><Icons.plus className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Add New Inventory Item</DialogTitle></DialogHeader>
                 <Form {...addForm}><form onSubmit={addForm.handleSubmit(handleAddItem)} className="space-y-4">

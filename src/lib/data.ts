@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export type Reading = {
@@ -22,7 +23,7 @@ export type EngineReading = {
 
 export type EngineLog = {
   id: string;
-  timestamp: Date;
+  timestamp: Date | Timestamp;
   officer: string; // Name of the officer
   readings: EngineReading[];
   notes: string;
@@ -40,9 +41,9 @@ export type InventoryItem = {
 };
 
 export type ActivityLog = 
-  | ({ type: 'engine', logId: string, officer: string } & { id: string; timestamp: Date })
-  | { type: 'inventory'; notes: string; name: string; category: InventoryCategory; id: string; timestamp: Date }
-  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date };
+  | { type: 'engine', logId: string, officer: string, id: string; timestamp: Date | Timestamp }
+  | { type: 'inventory'; notes: string; name: string; officer: string; category: InventoryCategory; id: string; timestamp: Date | Timestamp }
+  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp };
 
 
 export type AppSettings = {

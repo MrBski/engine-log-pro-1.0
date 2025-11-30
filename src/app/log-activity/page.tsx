@@ -240,13 +240,6 @@ export default function LogActivityPage() {
     // The data is already sorted by timestamp desc from useData hook. No need to re-sort.
     const sortedActivities = activityLog;
 
-
-    const categoryMapping: { [key: string]: string } = {
-        'main-engine': 'Inventory (ME)',
-        'generator': 'Inventory (AE)',
-        'other': 'Inventory (Others)',
-    };
-
     const getIcon = (type: ActivityLog['type']) => {
         switch (type) {
             case 'engine': return <Icons.file className="h-4 w-4 text-muted-foreground" />;
@@ -260,26 +253,8 @@ export default function LogActivityPage() {
         switch (activity.type) {
             case 'engine': return 'Engine Log Entry';
             case 'inventory': return `"${activity.name}" updated`;
-            case 'generator': return 'Generator Action';
+            case 'generator': return activity.notes || 'Generator Action';
             default: return 'Activity';
-        }
-    }
-
-    const getOfficerText = (activity: ActivityLog) => {
-        switch (activity.type) {
-            case 'engine': return `by ${activity.officer}`;
-            case 'inventory': return categoryMapping[activity.category || 'other'];
-            case 'generator': return `by ${activity.officer}`;
-            default: return '';
-        }
-    }
-
-    const getNotes = (activity: ActivityLog) => {
-        switch (activity.type) {
-            case 'engine': return null;
-            case 'inventory': return activity.notes;
-            case 'generator': return activity.notes;
-            default: return null;
         }
     }
 
@@ -301,7 +276,6 @@ export default function LogActivityPage() {
 
                 <div className="space-y-2">
                     {sortedActivities.map(activity => {
-                        const notes = getNotes(activity);
                         const logId = activity.type === 'engine' ? activity.logId : undefined;
                         const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
 
@@ -316,11 +290,11 @@ export default function LogActivityPage() {
                                         <p className="text-xs text-muted-foreground">
                                             {formatSafeDate(safeToDate(activity.timestamp), { dateStyle: 'short', timeStyle: 'short' })} - {' '}
                                             <span className="font-medium">
-                                                {getOfficerText(activity)}
+                                                by {activity.officer}
                                             </span>
                                         </p>
-                                        {notes && (
-                                            <p className="text-xs text-muted-foreground">{notes}</p>
+                                        {activity.type === 'inventory' && activity.notes && (
+                                            <p className="text-xs text-muted-foreground">{activity.notes}</p>
                                         )}
                                     </div>
                                 </div>

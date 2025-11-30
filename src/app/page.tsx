@@ -23,10 +23,16 @@ function formatDuration(seconds: number) {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-const safeToDate = (timestamp: Date | string | undefined): Date | null => {
+const safeToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
-    if (typeof timestamp === 'string') return new Date(timestamp);
+    if (typeof timestamp.toDate === 'function') {
+        return timestamp.toDate();
+    }
+    const date = new Date(timestamp);
+    if (!isNaN(date.getTime())) {
+        return date;
+    }
     return null;
 };
 
@@ -46,7 +52,7 @@ export default function DashboardPage() {
   }, []);
 
   const handleGeneratorToggle = async () => {
-    if (!settings || !isLoggedIn) return;
+    if (!settings || !isLoggedIn || !user?.name) return;
     if (settings.generatorStatus === 'on') {
       // Turning OFF
       const endTime = Date.now();
@@ -62,7 +68,7 @@ export default function DashboardPage() {
             type: 'generator',
             timestamp: new Date(),
             notes: 'Generator turned OFF',
-            officer: user?.name || 'System',
+            officer: user.name,
         });
         toast({ title: "Generator Off", description: "Running hours have been updated." });
       } catch (error) {
@@ -79,7 +85,7 @@ export default function DashboardPage() {
             type: 'generator',
             timestamp: new Date(),
             notes: 'Generator turned ON',
-            officer: user?.name || 'System',
+            officer: user.name,
         });
         toast({ title: "Generator On", description: "Running hours tracking started." });
       } catch (error) {
@@ -89,7 +95,7 @@ export default function DashboardPage() {
   };
 
   const handleGeneratorReset = async () => {
-     if (!settings || !isLoggedIn) return;
+     if (!settings || !isLoggedIn || !user?.name) return;
      try {
         await updateSettings({
             generatorRunningHours: 0,
@@ -99,7 +105,7 @@ export default function DashboardPage() {
             type: 'generator',
             timestamp: new Date(),
             notes: 'Generator RHS Reset',
-            officer: user?.name || 'System',
+            officer: user.name,
         });
         toast({ title: "Generator RHS Reset", description: "Running hours have been reset to 0." });
      } catch (error) {
