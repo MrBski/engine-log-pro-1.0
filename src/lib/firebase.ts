@@ -13,8 +13,8 @@ const firebaseConfig: FirebaseOptions = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// For offline debugging, we can disable Firebase.
-const USE_FIREBASE = false;
+// Re-enable Firebase
+const USE_FIREBASE = true;
 
 // Initialize Firebase only if all config values are present AND Firebase is enabled
 const isConfigValid = Object.values(firebaseConfig).every(Boolean);
