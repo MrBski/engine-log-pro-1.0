@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
 import { AppHeader } from "@/components/app-header";
 import { Card } from "@/components/ui/card";
@@ -19,10 +19,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { useRef, useCallback } from "react";
 import * as htmlToImage from 'html-to-image';
 import { useData } from "@/hooks/use-data";
-import type { Timestamp } from "firebase/firestore";
+
 
 const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
@@ -34,21 +33,16 @@ const sectionColors: { [key: string]: string } = {
     'Fuel Consumption': 'bg-orange-600',
 };
 
-const safeToDate = (timestamp: Timestamp | Date | string | undefined): Date | null => {
+const safeToDate = (timestamp: Date | string | undefined): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
     if (typeof timestamp === 'string') return new Date(timestamp);
-    // This is the important part for Firestore Timestamps
-    if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
-        return timestamp.toDate();
-    }
     return null;
 };
 
 const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions = {}): string => {
     if (!date) return '...';
     try {
-        // Use a fixed locale like 'id-ID' to prevent hydration mismatches
         return date.toLocaleString('id-ID', options);
     } catch {
         return 'Invalid Date';
@@ -234,7 +228,8 @@ export default function LogActivityPage() {
         }
     };
 
-    const sortedActivities = activityLog;
+    const sortedActivities = [...activityLog].sort((a, b) => safeToDate(b.timestamp)!.getTime() - safeToDate(a.timestamp)!.getTime());
+
 
     const categoryMapping: { [key: string]: string } = {
         'main-engine': 'Inventory (ME)',
@@ -359,5 +354,3 @@ export default function LogActivityPage() {
         </>
     )
 }
-
-    

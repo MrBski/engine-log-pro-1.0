@@ -15,7 +15,6 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import type { Timestamp } from "firebase/firestore";
 
 function formatDuration(seconds: number) {
     const h = Math.floor(seconds / 3600);
@@ -24,13 +23,10 @@ function formatDuration(seconds: number) {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-const safeToDate = (timestamp: Timestamp | Date | string | undefined): Date | null => {
+const safeToDate = (timestamp: Date | string | undefined): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
     if (typeof timestamp === 'string') return new Date(timestamp);
-    if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
-      return timestamp.toDate();
-    }
     return null;
 };
 
@@ -271,5 +267,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

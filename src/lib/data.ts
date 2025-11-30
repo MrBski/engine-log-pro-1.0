@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 
 export type Reading = {
@@ -12,7 +11,7 @@ export type LogSection = {
   id: string;
   title: string;
   readings: Reading[];
-}
+};
 
 export type EngineReading = {
   id: string;
@@ -23,7 +22,7 @@ export type EngineReading = {
 
 export type EngineLog = {
   id: string;
-  timestamp: Timestamp | string; // Firestore uses Timestamp, but we might get string from some sources
+  timestamp: Date;
   officer: string; // Name of the officer
   readings: EngineReading[];
   notes: string;
@@ -41,9 +40,10 @@ export type InventoryItem = {
 };
 
 export type ActivityLog = 
-  | ({ type: 'engine', logId: string, officer: string } & { id: string; timestamp: Timestamp | string })
-  | { type: 'inventory'; notes: string; name: string; category: InventoryCategory; id: string; timestamp: Timestamp | string }
-  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Timestamp | string };
+  | ({ type: 'engine', logId: string, officer: string } & { id: string; timestamp: Date })
+  | { type: 'inventory'; notes: string; name: string; category: InventoryCategory; id: string; timestamp: Date }
+  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date };
+
 
 export type AppSettings = {
   shipName: string;
@@ -54,7 +54,15 @@ export type AppSettings = {
   generatorStartTime: number | null;
 };
 
-export const getInitialData = () => ({
+export type AppData = {
+  settings: AppSettings;
+  inventory: InventoryItem[];
+  logs: EngineLog[];
+  activityLog: ActivityLog[];
+  logbookSections: LogSection[];
+};
+
+export const getInitialData = (): AppData => ({
   settings: {
     shipName: 'Engine log pro',
     officers: ['Chief Engineer', '2nd Engineer', 'Oiler'],

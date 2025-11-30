@@ -36,11 +36,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
+    // If Firebase is disabled, create a fake user and stop loading.
     if (!auth) {
+        setUser({ uid: 'offline-user', email: 'chief@example.com', name: 'Chief Engineer' });
         setIsLoading(false);
-        // Don't subscribe to auth state if firebase isn't configured
         return;
     }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         // User is signed in.
@@ -63,14 +65,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     if (!auth) {
-      throw new Error("Firebase configuration is missing. Cannot log in.");
+      // Simulate login for offline mode
+      const profileName = DEMO_USERS[email]?.name || email.split('@')[0] || 'User';
+      setUser({ uid: 'offline-user', email, name: profileName });
+      router.push('/');
+      return;
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/');
     } catch (error: any) {
       console.error("Firebase login error:", error);
-      // Provide a more specific error message if possible
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-api-key') {
           throw new Error('Invalid email, password, or Firebase configuration.');
       }
@@ -80,12 +85,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     if (!auth) {
-       toast({
-        variant: 'destructive',
-        title: 'Logout Failed',
-        description: 'Firebase is not configured.',
-      });
-      return;
+       // Simulate logout for offline mode
+       setUser(null);
+       router.push('/login');
+       return;
     }
     try {
       await signOut(auth);
@@ -98,24 +101,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
     }
   };
-
-  if (!auth && !isLoading) {
-    return (
-        <div className="flex min-h-screen items-center justify-center bg-background p-4">
-            <div className="w-full max-w-lg rounded-lg border border-destructive bg-card p-6 text-center text-card-foreground">
-                <h1 className="text-xl font-bold text-destructive">Firebase Configuration Error</h1>
-                <p className="mt-2 text-muted-foreground">The application could not connect to Firebase. This usually happens for one of two reasons:</p>
-                <ul className="mt-4 list-disc space-y-2 pl-5 text-left text-sm text-muted-foreground">
-                    <li>For local development, you need to create a <strong>.env.local</strong> file with the Firebase project credentials.</li>
-                    <li>For deployed sites (like Vercel), you must add the Firebase credentials to the <strong>Environment Variables</strong> in your project settings.</li>
-                </ul>
-                <p className="mt-4 text-xs text-muted-foreground">
-                    You can find your Firebase credentials in your Firebase Console under Project settings {'>'} General {'>'} Your apps {'>'} SDK setup and configuration {'>'} Config.
-                </p>
-            </div>
-        </div>
-    )
-  }
 
   return (
     <AuthContext.Provider value={{ user, isLoading, login, logout }}>
