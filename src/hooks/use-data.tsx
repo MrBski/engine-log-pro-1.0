@@ -14,6 +14,7 @@ import {
     setDoc,
     Timestamp,
     where,
+    getDocs,
 } from 'firebase/firestore';
 import { useCollectionData, useDocumentData } from 'react-firebase-hooks/firestore';
 import { db } from '@/lib/firebase';
@@ -27,22 +28,27 @@ import {
 } from '@/lib/data';
 
 // Helper function to safely convert Firestore Timestamps
-const convertTimestamps = (data: any) => {
+const convertTimestamps = (data: any): any => {
   if (!data) return data;
+
+  if (data instanceof Timestamp) {
+    return data.toDate();
+  }
+
   if (Array.isArray(data)) {
     return data.map(item => convertTimestamps(item));
   }
-  if (typeof data === 'object' && data !== null) {
+
+  if (typeof data === 'object') {
     const newObj: { [key: string]: any } = {};
     for (const key in data) {
-      if (data[key] instanceof Timestamp) {
-        newObj[key] = data[key].toDate();
-      } else {
-        newObj[key] = convertTimestamps(data[key]);
-      }
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+            newObj[key] = convertTimestamps(data[key]);
+        }
     }
     return newObj;
   }
+  
   return data;
 };
 
@@ -74,31 +80,33 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const { user, isLoading: authLoading } = useAuth();
     const initialData = getInitialData();
     
-    // Firestore Hooks
-    const settingsRef = user ? doc(db!, 'settings', 'main') : null;
+    // Determine if we should be using Firebase
+    const useFirebase = !!user;
+
+    // --- Firestore Hooks ---
+    const settingsRef = useFirebase ? doc(db!, 'settings', 'main') : null;
     const [settingsDoc, settingsLoading, settingsError] = useDocumentData(settingsRef);
 
-    const logbookRef = user ? doc(db!, 'logbook', 'sections') : null;
+    const logbookRef = useFirebase ? doc(db!, 'logbook', 'sections') : null;
     const [logbookDoc, logbookLoading, logbookError] = useDocumentData(logbookRef);
     
-    const inventoryQuery = user ? query(collection(db!, `users/${user.uid}/inventory`), orderBy('name', 'asc')) : null;
+    const inventoryQuery = useFirebase ? query(collection(db!, `users/${user.uid}/inventory`), orderBy('name', 'asc')) : null;
     const [inventoryCol, inventoryLoading, inventoryError] = useCollectionData(inventoryQuery, { idField: 'id' });
 
-    const logsQuery = user ? query(collection(db!, `users/${user.uid}/logs`), orderBy('timestamp', 'desc')) : null;
+    const logsQuery = useFirebase ? query(collection(db!, `users/${user.uid}/logs`), orderBy('timestamp', 'desc')) : null;
     const [logsCol, logsLoading, logsError] = useCollectionData(logsQuery, { idField: 'id' });
 
-    const activityQuery = user ? query(collection(db!, `users/${user.uid}/activityLog`), orderBy('timestamp', 'desc')) : null;
+    const activityQuery = useFirebase ? query(collection(db!, `users/${user.uid}/activityLog`), orderBy('timestamp', 'desc')) : null;
     const [activityCol, activityLoading, activityError] = useCollectionData(activityQuery, { idField: 'id' });
 
-    // Memoize and convert data to prevent re-renders and fix timestamp issues
-    const settings = useMemo(() => convertTimestamps(settingsDoc) as AppSettings | undefined, [settingsDoc]);
-    const logbookSections = useMemo(() => (logbookDoc?.sections ? convertTimestamps(logbookDoc.sections) : undefined) as LogSection[] | undefined, [logbookDoc]);
-    const inventory = useMemo(() => convertTimestamps(inventoryCol) as InventoryItem[] | undefined, [inventoryCol]);
-    const logs = useMemo(() => convertTimestamps(logsCol) as EngineLog[] | undefined, [logsCol]);
-    const activityLog = useMemo(() => convertTimestamps(activityCol) as ActivityLog[] | undefined, [activityCol]);
+    // --- Proactive Data Conversion ---
+    const settings = useMemo(() => convertTimestamps(settingsDoc), [settingsDoc]);
+    const logbookSections = useMemo(() => logbookDoc?.sections ? convertTimestamps(logbookDoc.sections) : undefined, [logbookDoc]);
+    const inventory = useMemo(() => convertTimestamps(inventoryCol) as InventoryItem[], [inventoryCol]);
+    const logs = useMemo(() => convertTimestamps(logsCol) as EngineLog[], [logsCol]);
+    const activityLog = useMemo(() => convertTimestamps(activityCol) as ActivityLog[], [activityCol]);
 
-
-    const loading = authLoading || settingsLoading || logbookLoading || inventoryLoading || logsLoading || activityLoading;
+    const loading = authLoading || (useFirebase && (settingsLoading || logbookLoading || inventoryLoading || logsLoading || activityLoading));
 
     // --- MUTATION FUNCTIONS ---
     
@@ -117,15 +125,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const deleteLog = async (logId: string) => {
         if (!user || !db) return;
-        // Delete the log
         await deleteDoc(doc(db, `users/${user.uid}/logs`, logId));
         
-        // Find and delete the associated activity log
-        const activityQuery = query(collection(db, `users/${user.uid}/activityLog`), where("logId", "==", logId));
-        const { getDocs } = await import('firebase/firestore');
-        const activitySnapshot = await getDocs(activityQuery);
-        activitySnapshot.forEach(async (doc) => {
-            await deleteDoc(doc.ref);
+        const activityQueryRef = query(collection(db, `users/${user.uid}/activityLog`), where("logId", "==", logId));
+        const activitySnapshot = await getDocs(activityQueryRef);
+        activitySnapshot.forEach(async (docToDelete) => {
+            await deleteDoc(docToDelete.ref);
         });
     };
 
@@ -151,11 +156,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
     
     const data: DataContextType = {
-        settings: settings === undefined ? initialData.settings : settings,
-        logbookSections: logbookSections === undefined ? initialData.logbookSections : logbookSections,
-        inventory: inventory || [],
-        logs: logs || [],
-        activityLog: activityLog || [],
+        settings: useFirebase ? settings : initialData.settings,
+        logbookSections: useFirebase ? logbookSections : initialData.logbookSections,
+        inventory: useFirebase ? (inventory || []) : initialData.inventory,
+        logs: useFirebase ? (logs || []) : initialData.logs,
+        activityLog: useFirebase ? (activityLog || []) : initialData.activityLog,
         updateSettings,
         addLog,
         deleteLog,
@@ -163,7 +168,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updateInventoryItem,
         addActivityLog,
         updateLogbookSections,
-        loading: user ? loading : authLoading,
+        loading,
     };
 
     return (
