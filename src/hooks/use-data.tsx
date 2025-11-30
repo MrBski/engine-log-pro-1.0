@@ -11,10 +11,9 @@ import {
     deleteDoc,
     updateDoc,
     setDoc,
-    serverTimestamp,
+    Timestamp,
     query,
     orderBy,
-    Timestamp,
 } from 'firebase/firestore';
 import { useDocumentData, useCollectionData } from 'react-firebase-hooks/firestore';
 import {
@@ -27,43 +26,42 @@ import {
 } from '@/lib/data';
 
 // Helper to safely convert Firestore Timestamps to JS Dates
-const safeToDate = (firestoreTimestamp: any): Date | null => {
-  if (!firestoreTimestamp) return null;
-  if (firestoreTimestamp instanceof Date) return firestoreTimestamp;
-  if (firestoreTimestamp.toDate && typeof firestoreTimestamp.toDate === 'function') {
-    return firestoreTimestamp.toDate();
-  }
-  return new Date(firestoreTimestamp); // Fallback for strings/numbers
-};
-
 const convertDocTimestamps = (doc: any) => {
     if (!doc) return doc;
     const data = { ...doc };
-    if (data.timestamp) {
-        data.timestamp = safeToDate(data.timestamp);
+    // Recursively check for 'toDate' method which indicates a Firestore Timestamp
+    for (const key in data) {
+        if (data[key] && typeof data[key].toDate === 'function') {
+            data[key] = data[key].toDate();
+        }
     }
     return data;
-}
+};
 
 interface DataContextType {
   settings: AppSettings | undefined;
   updateSettings: (newSettings: Partial<Omit<AppSettings, 'id'>>) => Promise<void>;
+  settingsLoading: boolean;
   
   logs: EngineLog[];
   addLog: (log: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => Promise<string | undefined>;
   deleteLog: (logId: string) => Promise<void>;
+  logsLoading: boolean;
 
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, 'id'>) => Promise<void>;
   updateInventoryItem: (itemId: string, updates: Partial<InventoryItem>) => Promise<void>;
+  inventoryLoading: boolean;
   
   activityLog: ActivityLog[];
   addActivityLog: (activity: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => Promise<void>;
+  activityLogLoading: boolean;
 
   logbookSections: LogSection[] | undefined;
   updateLogbookSections: (sections: LogSection[]) => Promise<void>;
+  logbookLoading: boolean;
 
-  loading: boolean;
+  loading: boolean; // General loading for auth state
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -115,16 +113,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const logs = useMemo(() => {
         if (isGuest) return localLogs;
         if (!logsCol) return [];
-        return logsCol.map(log => convertDocTimestamps(log)) as EngineLog[];
+        return logsCol.map(convertDocTimestamps) as EngineLog[];
     }, [isGuest, localLogs, logsCol]);
     
     const activityLog = useMemo(() => {
         if (isGuest) return localActivityLog;
         if (!activityCol) return [];
-        return activityCol.map(activity => convertDocTimestamps(activity)) as ActivityLog[];
+        return activityCol.map(convertDocTimestamps) as ActivityLog[];
     }, [isGuest, localActivityLog, activityCol]);
 
-    const inventory = isGuest ? localInventory : (inventoryCol as InventoryItem[] || []);
+    const inventory = useMemo(() => {
+        if(isGuest) return localInventory;
+        return (inventoryCol as InventoryItem[] || []);
+    }, [isGuest, localInventory, inventoryCol]);
     
     const settings = useMemo(() => {
         if (isGuest) return localSettings;
@@ -133,18 +134,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const logbookSections = useMemo(() => {
         if (isGuest) return localLogbookSections;
+        // Provide default sections if the document doesn't exist yet for a new user
         return (logbookDoc?.sections || getInitialData().logbookSections) as LogSection[] | undefined;
     }, [isGuest, localLogbookSections, logbookDoc]);
     
-
     // --- MUTATION FUNCTIONS ---
     
     const updateSettings = async (newSettings: Partial<AppSettings>) => {
         if (isGuest) {
-            setLocalSettings(prev => ({ ...(prev || getInitialData().settings), ...newSettings }));
+            setLocalSettings(prev => ({ ...(prev || getInitialData().settings), ...newSettings, id: 'local' }));
             return;
         }
         if (settingsRef) {
+             // For a new user, settingsDoc might be undefined, so we merge with an empty object.
             await setDoc(settingsRef, newSettings, { merge: true });
         }
     };
@@ -199,7 +201,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const addActivityLog = async (activityData: Omit<ActivityLog, 'id'>) => {
+    const addActivityLog = async (activityData: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         if (isGuest) {
             const newActivity = { ...activityData, id: `act-${Date.now()}` } as ActivityLog;
             setLocalActivityLog(prev => [newActivity, ...prev].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()));
@@ -236,7 +238,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updateInventoryItem,
         addActivityLog,
         updateLogbookSections,
-        loading: authLoading || (isGuest ? !isDataInitialized : settingsLoading || inventoryLoading || logsLoading || activityLoading || logbookLoading),
+        loading: authLoading || (isGuest && !isDataInitialized),
+        settingsLoading: isGuest ? !isDataInitialized : settingsLoading,
+        inventoryLoading: isGuest ? !isDataInitialized : inventoryLoading,
+        logsLoading: isGuest ? !isDataInitialized : logsLoading,
+        activityLogLoading: isGuest ? !isDataInitialized : activityLoading,
+        logbookLoading: isGuest ? !isDataInitialized : logbookLoading,
     };
 
     return (

@@ -31,7 +31,11 @@ const safeToDate = (timestamp: Date | string | undefined): Date | null => {
 };
 
 export default function DashboardPage() {
-  const { inventory = [], logs = [], settings, updateSettings, addActivityLog, loading } = useData();
+  const { 
+    inventory, logs, settings, 
+    updateSettings, addActivityLog, 
+    loading, settingsLoading, inventoryLoading, logsLoading 
+  } = useData();
   const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -103,15 +107,23 @@ export default function DashboardPage() {
   };
 
   const lowStockItems = inventory.filter(item => item.stock <= item.lowStockThreshold);
-  const latestLog = logs.length > 0 ? logs[0] : null;
-  const recentLogs = logs.slice(0, 5);
+  
+  const sortedLogs = [...logs].sort((a, b) => {
+    const dateA = safeToDate(a.timestamp);
+    const dateB = safeToDate(b.timestamp);
+    if (!dateA || !dateB) return 0;
+    return dateB.getTime() - dateA.getTime();
+  });
+
+  const latestLog = sortedLogs.length > 0 ? sortedLogs[0] : null;
+  const recentLogs = sortedLogs.slice(0, 5);
 
   const getReading = (log: EngineLog, key: string) => {
     const reading = log.readings.find(r => r.key.toLowerCase().includes(key.toLowerCase()));
     return reading ? `${reading.value} ${reading.unit}` : 'N/A';
   }
 
-  const chartData = logs.slice(0, 7).reverse().map(log => {
+  const chartData = sortedLogs.slice(0, 7).reverse().map(log => {
     const logDate = safeToDate(log.timestamp);
     return {
         date: logDate ? logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
@@ -134,7 +146,7 @@ export default function DashboardPage() {
     return (settings.generatorRunningHours || 0) * 3600;
   };
 
-  if (!mounted || loading || !settings) {
+  if (!mounted || loading || settingsLoading || inventoryLoading || logsLoading) {
     return (
       <>
         <AppHeader />
@@ -152,7 +164,7 @@ export default function DashboardPage() {
             <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
             <div className="flex-1">
               <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
-              <p className="text-xl font-bold">{(settings.runningHours || 0).toLocaleString()} hrs</p>
+              <p className="text-xl font-bold">{(settings?.runningHours || 0).toLocaleString()} hrs</p>
             </div>
           </div>
         </Card>
@@ -181,10 +193,10 @@ export default function DashboardPage() {
                 </AlertDialog>
                 <Button 
                     size="icon" 
-                    className={cn("h-8 w-8", settings.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
+                    className={cn("h-8 w-8", settings?.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
                     onClick={handleGeneratorToggle}
                 >
-                    {settings.generatorStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
+                    {settings?.generatorStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
                 </Button>
             </div>
         </Card>

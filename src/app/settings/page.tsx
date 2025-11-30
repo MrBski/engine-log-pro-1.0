@@ -32,7 +32,7 @@ const loginSchema = z.object({
 });
 
 export default function SettingsPage() {
-  const { settings, updateSettings } = useData();
+  const { settings, updateSettings, settingsLoading } = useData();
   const { user, login, logout } = useAuth();
   const { toast } = useToast();
 
@@ -106,7 +106,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (!settings) {
+  if (settingsLoading) {
       return (
           <>
           <AppHeader />
@@ -201,6 +201,7 @@ export default function SettingsPage() {
             </Form>
           </CardContent>
         </Card>
+        {settings && (
         <Card>
           <CardHeader>
             <CardTitle>Manage Officers</CardTitle>
@@ -235,6 +236,7 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+        )}
          <Card className="md:col-span-2">
             <CardHeader>
                 <CardTitle>Logbook Configuration</CardTitle>

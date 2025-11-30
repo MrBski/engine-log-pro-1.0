@@ -225,7 +225,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
 }
 
 export default function LogActivityPage() {
-    const { activityLog = [], deleteLog, logs = [], logbookSections = [], loading } = useData();
+    const { activityLog, deleteLog, logs, logbookSections, activityLogLoading, logbookLoading } = useData();
     const { toast } = useToast();
 
     const handleDeleteLog = async (logId: string) => {
@@ -237,7 +237,12 @@ export default function LogActivityPage() {
         }
     };
 
-    const sortedActivities = [...activityLog].sort((a, b) => safeToDate(b.timestamp)!.getTime() - safeToDate(a.timestamp)!.getTime());
+    const sortedActivities = [...activityLog].sort((a, b) => {
+        const dateA = safeToDate(a.timestamp);
+        const dateB = safeToDate(b.timestamp);
+        if (!dateA || !dateB) return 0;
+        return dateB.getTime() - dateA.getTime();
+    });
 
 
     const categoryMapping: { [key: string]: string } = {
@@ -286,13 +291,13 @@ export default function LogActivityPage() {
         <>
             <AppHeader />
             <div className="space-y-4">
-                {loading && (
+                {(activityLogLoading || logbookLoading) && (
                     <div className="text-center py-10">
                         <p>Loading activities...</p>
                     </div>
                 )}
                 
-                {!loading && sortedActivities.length === 0 && (
+                {!(activityLogLoading || logbookLoading) && sortedActivities.length === 0 && (
                     <Card className="text-center p-10">
                         <p className="text-muted-foreground">No activities recorded yet.</p>
                     </Card>
@@ -301,7 +306,7 @@ export default function LogActivityPage() {
                 <div className="space-y-2">
                     {sortedActivities.map(activity => {
                         const notes = getNotes(activity);
-                        const logId = activity.type === 'engine' ? activity.logId : null;
+                        const logId = activity.type === 'engine' ? activity.logId : undefined;
                         const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
 
                         return (

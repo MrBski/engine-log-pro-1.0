@@ -43,7 +43,7 @@ const useItemSchema = z.object({
 });
 
 export default function InventoryPage() {
-  const { inventory = [], addInventoryItem, updateInventoryItem, addActivityLog } = useData();
+  const { inventory = [], addInventoryItem, updateInventoryItem, addActivityLog, inventoryLoading } = useData();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -66,7 +66,7 @@ export default function InventoryPage() {
         timestamp: new Date(),
         name: values.name,
         notes: `Added ${values.stock} ${values.unit} to stock.`,
-        category: values.category,
+        category: values.category as InventoryCategory,
       });
       toast({ title: "Success", description: `${values.name} added to inventory.` });
       addForm.reset();
@@ -108,6 +108,12 @@ export default function InventoryPage() {
 
   const renderTable = (category: InventoryCategory) => {
     const items = inventory.filter(item => item.category === category);
+    if (inventoryLoading) {
+      return <p className="text-center text-muted-foreground p-4">Loading inventory...</p>;
+    }
+    if (items.length === 0) {
+      return <p className="text-center text-muted-foreground p-4">No items in this category.</p>
+    }
     return (
       <Table>
         <TableHeader>

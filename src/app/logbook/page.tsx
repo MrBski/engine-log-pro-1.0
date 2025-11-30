@@ -50,9 +50,10 @@ const sectionColors: { [key: string]: string } = {
 };
 
 export default function LogbookPage() {
-  const { addLog, addActivityLog, settings, updateSettings, logbookSections = [] } = useData();
+  const { addLog, addActivityLog, settings, updateSettings, logbookSections = [], settingsLoading, logbookLoading } = useData();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
+  
+  const formReady = !settingsLoading && !logbookLoading;
 
   const form = useForm<LogFormData>({
     resolver: zodResolver(logSchema),
@@ -96,7 +97,7 @@ export default function LogbookPage() {
   const dailyTankAfterValue = form.watch(`sections.${dailyTankAfterSectionIndex}.readings.${dailyTankAfterReadingIndex}.value`);
 
   useEffect(() => {
-    if (logbookSections.length > 0 && settings) {
+    if (formReady && logbookSections.length > 0 && settings) {
       const dynamicDefaultValues = {
         timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         sections: logbookSections.map(section => ({
@@ -108,13 +109,12 @@ export default function LogbookPage() {
         condition: ""
       };
       form.reset(dynamicDefaultValues);
-      setIsLoading(false);
     }
-  }, [logbookSections, settings, form]);
+  }, [formReady, logbookSections, settings, form]);
 
 
   useEffect(() => {
-    if (used4HoursSectionIndex === undefined || used4HoursReadingIndex === undefined || isLoading) return;
+    if (used4HoursSectionIndex === undefined || used4HoursReadingIndex === undefined || !formReady) return;
     
     const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
     const dailyTankAfter = parseFloat(dailyTankAfterValue || '0');
@@ -132,7 +132,7 @@ export default function LogbookPage() {
         }
     }
 
-  }, [onDutyBeforeValue, dailyTankAfterValue, form, isLoading, used4HoursSectionIndex, used4HoursReadingIndex]);
+  }, [onDutyBeforeValue, dailyTankAfterValue, form, formReady, used4HoursSectionIndex, used4HoursReadingIndex]);
 
 
   async function onSubmit(values: LogFormData) {
@@ -202,7 +202,7 @@ export default function LogbookPage() {
     }
   };
   
-  if (isLoading) {
+  if (!formReady) {
     return (
         <div className="flex flex-col gap-6">
             <AppHeader />
