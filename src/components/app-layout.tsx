@@ -23,7 +23,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   if (isLoading || !isClient) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background text-foreground">
-        <Icons.logo className="h-16 w-16 animate-pulse text-primary" />
+        <Icons.logo className="h-20 w-24 animate-pulse" />
         <p className="text-lg font-semibold">Loading Application...</p>
       </div>
     );

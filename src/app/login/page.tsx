@@ -59,7 +59,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="mb-4 flex justify-center">
-            <Icons.logo className="h-12 w-12 text-primary" />
+            <Icons.logo className="h-20 w-24" />
           </div>
           <CardTitle>Engine Log Pro</CardTitle>
           <CardDescription>Enter your credentials to access your dashboard</CardDescription>

@@ -54,7 +54,7 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:h-20 lg:px-6">
       <div className="flex items-center gap-4">
-        <Icons.logo className="hidden size-12 text-primary md:block" />
+        <Icons.logo className="hidden h-12 w-16 md:block" />
         {getBreadcrumb()}
       </div>
       <div className="flex items-center gap-2 md:gap-4">
