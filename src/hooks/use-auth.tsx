@@ -2,17 +2,17 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { useToast } from './use-toast';
 
-const GUEST_USER = { uid: 'guest-user', email: 'guest@example.com', name: 'Guest' };
+const GUEST_SHIP_ID = "guest-ship";
+const GUEST_USER = { uid: 'guest-user', email: 'guest@example.com', name: 'Guest', shipId: GUEST_SHIP_ID };
 
 interface User {
   uid: string;
   email: string | null;
   name: string;
+  shipId: string;
 }
 
 interface AuthContextType {
@@ -24,28 +24,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper function to extract a user-friendly name
+// Helper to get a user-friendly name from a Firebase user object
 const getUserName = (firebaseUser: FirebaseUser | null): string => {
     if (!firebaseUser) return 'Guest';
     if (firebaseUser.displayName) return firebaseUser.displayName;
     if (firebaseUser.email) {
-        // 'user.name@example.com' -> 'user.name'
         const emailName = firebaseUser.email.split('@')[0];
-        // 'user.name' -> 'User Name'
         return emailName.replace(/[\._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
     return 'User';
 }
 
+// Helper to get a ship ID from an email address
+const getShipIdFromEmail = (email: string | null): string => {
+    if (!email) return GUEST_SHIP_ID;
+    const match = email.match(/@([^.]+)\.?/);
+    return match ? match[1] : GUEST_SHIP_ID;
+}
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(GUEST_USER);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     if (!auth) {
-      // Firebase is disabled, stay in guest mode and finish loading.
       setUser(GUEST_USER);
       setIsLoading(false);
       return;
@@ -57,9 +59,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           name: getUserName(firebaseUser),
+          shipId: getShipIdFromEmail(firebaseUser.email),
         });
       } else {
-        // No user is logged in, default to guest user.
         setUser(GUEST_USER);
       }
       setIsLoading(false);
@@ -73,7 +75,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error("Firebase is not enabled. Cannot log in.");
     }
     await signInWithEmailAndPassword(auth, email, password);
-    // onAuthStateChanged will handle setting the user state
   };
 
   const logout = async () => {
@@ -82,7 +83,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     await signOut(auth);
-    // onAuthStateChanged will handle setting the user back to guest
   };
 
   return (
