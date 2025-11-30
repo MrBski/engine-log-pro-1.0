@@ -19,6 +19,17 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -44,7 +55,7 @@ const useItemSchema = z.object({
 });
 
 export default function InventoryPage() {
-  const { inventory = [], addInventoryItem, updateInventoryItem, addActivityLog, inventoryLoading } = useData();
+  const { inventory = [], addInventoryItem, updateInventoryItem, deleteInventoryItem, addActivityLog, inventoryLoading } = useData();
   const { user } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
@@ -115,13 +126,28 @@ export default function InventoryPage() {
        toast({ variant: 'destructive', title: 'Error', description: 'Failed to update item stock.' });
     }
   };
+  
+  const handleDeleteItem = async (itemId: string) => {
+    try {
+      await deleteInventoryItem(itemId);
+      toast({ title: 'Success', description: 'Item has been deleted.' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete item.' });
+    }
+  };
 
   const categories: InventoryCategory[] = ['main-engine', 'generator', 'other'];
 
   const renderTable = (category: InventoryCategory) => {
     const items = inventory.filter(item => item.category === category);
     if (inventoryLoading) {
-      return <p className="text-center text-muted-foreground p-4">Loading inventory...</p>;
+      return (
+        <div className="space-y-2 p-4">
+          <div className="h-8 w-full rounded bg-muted animate-pulse" />
+          <div className="h-8 w-full rounded bg-muted animate-pulse" />
+          <div className="h-8 w-full rounded bg-muted animate-pulse" />
+        </div>
+      );
     }
     if (items.length === 0) {
       return <p className="text-center text-muted-foreground p-4">No items in this category.</p>
@@ -132,6 +158,7 @@ export default function InventoryPage() {
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead className="text-right">Stock</TableHead>
+            <TableHead className="w-[50px]"> </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -143,6 +170,27 @@ export default function InventoryPage() {
                   {item.stock} {item.unit}
                 </Badge>
               </TableCell>
+              <TableCell className="p-2 text-right">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" disabled={!isLoggedIn}>
+                      <Icons.trash className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete the item "{item.name}". This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteItem(item.id)}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -153,6 +201,9 @@ export default function InventoryPage() {
   const selectedItemForUsage = useFormInstance.watch("itemId");
   const selectedItemDetails = inventory.find(item => item.id === selectedItemForUsage);
   const isLoggedIn = user?.uid !== 'guest-user';
+  
+  const { isSubmitting: isAdding } = addForm.formState;
+  const { isSubmitting: isUsing } = useFormInstance.formState;
 
 
   return (
@@ -175,7 +226,7 @@ export default function InventoryPage() {
                 <Form {...useFormInstance}><form onSubmit={useFormInstance.handleSubmit(handleUseItem)} className="space-y-4">
                   <FormField control={useFormInstance.control} name="itemId" render={({ field }) => (
                     <FormItem><FormLabel>Item</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isUsing}>
                           <FormControl><SelectTrigger><SelectValue placeholder="Select an item to use" /></SelectTrigger></FormControl>
                           <SelectContent>
                             {inventory.map(item => (
@@ -188,12 +239,14 @@ export default function InventoryPage() {
                   )} />
                   {selectedItemDetails && (
                     <FormField control={useFormInstance.control} name="amount" render={({ field }) => (
-                        <FormItem><FormLabel>Amount to use ({selectedItemDetails.unit})</FormLabel><FormControl><Input type="number" placeholder="1" {...field} /></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Amount to use ({selectedItemDetails.unit})</FormLabel><FormControl><Input type="number" placeholder="1" {...field} disabled={isUsing} /></FormControl><FormMessage /></FormItem>
                     )} />
                   )}
                   <DialogFooter>
-                      <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-                      <Button type="submit">Confirm Usage</Button>
+                      <DialogClose asChild><Button type="button" variant="secondary" disabled={isUsing}>Cancel</Button></DialogClose>
+                      <Button type="submit" disabled={isUsing || !selectedItemDetails}>
+                        {isUsing ? 'Confirming...' : 'Confirm Usage'}
+                      </Button>
                   </DialogFooter>
                 </form></Form>
               </DialogContent>
@@ -203,19 +256,24 @@ export default function InventoryPage() {
               <DialogContent>
                 <DialogHeader><DialogTitle>Add New Inventory Item</DialogTitle></DialogHeader>
                 <Form {...addForm}><form onSubmit={addForm.handleSubmit(handleAddItem)} className="space-y-4">
-                  <FormField control={addForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Item Name</FormLabel><FormControl><Input placeholder="e.g. Lube Oil Filter" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={addForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Item Name</FormLabel><FormControl><Input placeholder="e.g. Lube Oil Filter" {...field} disabled={isAdding} /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={addForm.control} name="category" render={({ field }) => (
-                    <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isAdding}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger></FormControl>
                         <SelectContent><SelectItem value="main-engine">Main Engine</SelectItem><SelectItem value="generator">Generator</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent>
                     </Select><FormMessage /></FormItem>
                   )} />
                   <div className="grid grid-cols-3 gap-4">
-                    <FormField control={addForm.control} name="stock" render={({ field }) => (<FormItem><FormLabel>Stock</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={addForm.control} name="unit" render={({ field }) => (<FormItem><FormLabel>Unit</FormLabel><FormControl><Input placeholder="pcs" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={addForm.control} name="lowStockThreshold" render={({ field }) => (<FormItem><FormLabel>Threshold</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={addForm.control} name="stock" render={({ field }) => (<FormItem><FormLabel>Stock</FormLabel><FormControl><Input type="number" {...field} disabled={isAdding} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={addForm.control} name="unit" render={({ field }) => (<FormItem><FormLabel>Unit</FormLabel><FormControl><Input placeholder="pcs" {...field} disabled={isAdding} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={addForm.control} name="lowStockThreshold" render={({ field }) => (<FormItem><FormLabel>Threshold</FormLabel><FormControl><Input type="number" {...field} disabled={isAdding} /></FormControl><FormMessage /></FormItem>)} />
                   </div>
-                  <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit">Add Item</Button></DialogFooter>
+                  <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="secondary" disabled={isAdding}>Cancel</Button></DialogClose>
+                    <Button type="submit" disabled={isAdding}>
+                      {isAdding ? 'Adding...' : 'Add Item'}
+                    </Button>
+                  </DialogFooter>
                 </form></Form>
               </DialogContent>
             </Dialog>
@@ -237,3 +295,5 @@ export default function InventoryPage() {
     </>
   );
 }
+
+    
