@@ -7,9 +7,7 @@ import { db } from '@/lib/firebase';
 import {
     collection,
     doc,
-    addDoc,
     deleteDoc,
-    updateDoc,
     setDoc,
     getDoc,
     getDocs,
@@ -17,6 +15,7 @@ import {
     query,
     orderBy,
     writeBatch,
+    limit,
 } from 'firebase/firestore';
 import {
     type AppSettings,
@@ -206,8 +205,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             
             const [inventorySnap, logsSnap, activityLogSnap] = await Promise.all([
                 getDocs(query(collection(shipDocRef, 'inventory'))),
-                getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'))),
-                getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'))),
+                getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'), limit(100))),
+                getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'), limit(100))),
             ]);
 
             // Step 3: Update local state and storage with fresh server data
@@ -295,8 +294,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId), newSettings, { merge: true });
-        // Settings don't go to queue, they are written directly or fail
-        await performWrite(updateFn, firebaseFn);
+        const queueItem: UploadQueueItem = { type: 'update', path: [shipId], data: newSettings };
+        await performWrite(updateFn, firebaseFn, queueItem);
     };
 
     const addLog = async (logData: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
@@ -345,8 +344,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId, 'inventory', newItemId), itemData);
-        const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'inventory', newItemId], data: itemData };
+        const firebaseData = { ...itemData };
+        const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId, 'inventory', newItemId), firebaseData);
+        const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'inventory', newItemId], data: firebaseData };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
 
@@ -359,8 +359,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        const firebaseFn = () => updateDoc(doc(db, mainCollectionId, shipId, 'inventory', itemId), updates);
-        const queueItem: UploadQueueItem = { type: 'update', path: [shipId, 'inventory', itemId], data: updates };
+        const firebaseData = { ...updates };
+        const firebaseFn = () => updateDoc(doc(db, mainCollectionId, shipId, 'inventory', itemId), firebaseData);
+        const queueItem: UploadQueueItem = { type: 'update', path: [shipId, 'inventory', itemId], data: firebaseData };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
     
@@ -403,8 +404,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setLogbookSections(sections);
             setLocalData(`logbookSections_${shipId}`, sections);
         };
-        const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId, 'config', 'logbook'), { sections });
-        const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'config', 'logbook'], data: { sections } };
+        const firebaseData = { sections };
+        const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId, 'config', 'logbook'), firebaseData);
+        const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'config', 'logbook'], data: firebaseData };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
     
@@ -448,3 +450,6 @@ export const useData = () => {
   }
   return context;
 };
+
+
+    
