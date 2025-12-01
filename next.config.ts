@@ -34,6 +34,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  experimental: {
+    // allowedDevOrigins: ['https://*.cloudworkstations.dev'], // This is dev-only, remove for production
+  },
 };
 
 const withPWA = WithPWA({
