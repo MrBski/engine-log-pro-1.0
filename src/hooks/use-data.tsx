@@ -16,6 +16,7 @@ import {
     orderBy,
     writeBatch,
     limit,
+    updateDoc,
 } from 'firebase/firestore';
 import {
     type AppSettings,
@@ -205,8 +206,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             
             const [inventorySnap, logsSnap, activityLogSnap] = await Promise.all([
                 getDocs(query(collection(shipDocRef, 'inventory'))),
-                getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'), limit(100))),
-                getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'), limit(100))),
+                getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'), limit(50))),
+                getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'), limit(50))),
             ]);
 
             // Step 3: Update local state and storage with fresh server data
@@ -450,6 +451,5 @@ export const useData = () => {
   }
   return context;
 };
-
 
     
