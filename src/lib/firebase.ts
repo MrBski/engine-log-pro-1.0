@@ -17,7 +17,7 @@ const firebaseConfig: FirebaseOptions = {
 const USE_FIREBASE = true;
 
 // Initialize Firebase only if all config values are present AND Firebase is enabled
-const isConfigValid = Object.values(firebaseConfig).every(Boolean);
+const isConfigValid = Object.values(firebaseConfig).every(val => !!val);
 
 const app = USE_FIREBASE && isConfigValid && getApps().length === 0 ? initializeApp(firebaseConfig) : (USE_FIREBASE && isConfigValid ? getApp() : null);
 
