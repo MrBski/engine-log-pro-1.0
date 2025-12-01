@@ -33,6 +33,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Add the following to address the cross-origin warning
+  devIndicators: {
+    buildActivity: true,
+    buildActivityPosition: 'bottom-right',
+  },
+  experimental: {
+    // This allows specific cross-origin requests in development.
+    allowedDevOrigins: [
+      'https://*.cloudworkstations.dev',
+      'https://*.firebase.studio',
+    ],
+  },
 };
 
 const withPWA = WithPWA({
