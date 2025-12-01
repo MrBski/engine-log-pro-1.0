@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
-const GUEST_SHIP_ID = "guest-ship";
+const GUEST_SHIP_ID = "SMS16011";
 const GUEST_USER = { uid: 'guest-user', email: 'guest@example.com', name: 'Guest', shipId: GUEST_SHIP_ID };
 
 interface User {
@@ -39,8 +39,8 @@ const getUserName = (firebaseUser: FirebaseUser | null): string => {
 
 const getShipId = (firebaseUser: FirebaseUser | null): string => {
     // In a multi-tenant app, you'd get this from a custom claim or a user profile document.
-    // For now, it's hardcoded for simplicity.
-    return firebaseUser ? "guest-ship" : GUEST_SHIP_ID;
+    // For now, we use the user's UID as their unique "ship ID" or tenant ID.
+    return firebaseUser ? firebaseUser.uid : GUEST_SHIP_ID;
 }
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -124,3 +124,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+    

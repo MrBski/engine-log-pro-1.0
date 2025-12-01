@@ -86,6 +86,8 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+const MAIN_COLLECTION = 'TB.SMS16011';
+
 // Functions to interact with localStorage
 const getLocalData = (key: string, defaultValue: any) => {
     if (typeof window === 'undefined') return defaultValue;
@@ -149,7 +151,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (!isSilent) toast({ title: "Syncing...", description: "Fetching latest data from server." });
 
         try {
-            const shipDocRef = doc(db, "ships", shipId);
+            const shipDocRef = doc(db, MAIN_COLLECTION, shipId);
             
             let settingsSnap = await getDoc(shipDocRef);
 
@@ -252,7 +254,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        const firebaseFn = () => setDoc(doc(db, "ships", shipId), newSettings, { merge: true });
+        const firebaseFn = () => setDoc(doc(db, MAIN_COLLECTION, shipId), newSettings, { merge: true });
         await performWrite(updateFn, firebaseFn);
     };
 
@@ -267,7 +269,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        const firebaseFn = () => setDoc(doc(db, 'ships', shipId, 'logs', newLogId), { ...logData, timestamp: Timestamp.fromDate(logData.timestamp) });
+        const firebaseFn = () => setDoc(doc(db, MAIN_COLLECTION, shipId, 'logs', newLogId), { ...logData, timestamp: Timestamp.fromDate(logData.timestamp) });
         
         await performWrite(updateFn, firebaseFn);
         return newLogId;
@@ -281,7 +283,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        const firebaseFn = () => deleteDoc(doc(db, 'ships', shipId, 'logs', logId));
+        const firebaseFn = () => deleteDoc(doc(db, MAIN_COLLECTION, shipId, 'logs', logId));
         await performWrite(updateFn, firebaseFn);
     };
 
@@ -296,7 +298,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        const firebaseFn = () => setDoc(doc(db, 'ships', shipId, 'inventory', newItemId), itemData);
+        const firebaseFn = () => setDoc(doc(db, MAIN_COLLECTION, shipId, 'inventory', newItemId), itemData);
         await performWrite(updateFn, firebaseFn);
     };
 
@@ -308,7 +310,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        const firebaseFn = () => updateDoc(doc(db, 'ships', shipId, 'inventory', itemId), updates);
+        const firebaseFn = () => updateDoc(doc(db, MAIN_COLLECTION, shipId, 'inventory', itemId), updates);
         await performWrite(updateFn, firebaseFn);
     };
     
@@ -320,7 +322,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        const firebaseFn = () => deleteDoc(doc(db, 'ships', shipId, 'inventory', itemId));
+        const firebaseFn = () => deleteDoc(doc(db, MAIN_COLLECTION, shipId, 'inventory', itemId));
         await performWrite(updateFn, firebaseFn);
     };
 
@@ -335,7 +337,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        const firebaseFn = () => setDoc(doc(db, 'ships', shipId, 'activityLog', newActivityId), { ...activityData, timestamp: Timestamp.fromDate(activityData.timestamp) });
+        const firebaseFn = () => setDoc(doc(db, MAIN_COLLECTION, shipId, 'activityLog', newActivityId), { ...activityData, timestamp: Timestamp.fromDate(activityData.timestamp) });
         await performWrite(updateFn, firebaseFn);
     };
     
@@ -344,7 +346,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setLogbookSections(sections);
             setLocalData(`logbookSections_${shipId}`, sections);
         };
-        const firebaseFn = () => setDoc(doc(db, "ships", shipId, 'config', 'logbook'), { sections });
+        const firebaseFn = () => setDoc(doc(db, MAIN_COLLECTION, shipId, 'config', 'logbook'), { sections });
         await performWrite(updateFn, firebaseFn);
     };
     
@@ -389,4 +391,5 @@ export const useData = () => {
   return context;
 };
 
+    
     
