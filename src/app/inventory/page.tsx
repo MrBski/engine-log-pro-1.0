@@ -144,7 +144,7 @@ export default function InventoryPage() {
       toast({ title: 'Success', description: `Item "${itemToDelete.name}" has been deleted.` });
       setIsPinDialogOpen(false);
       setItemToDelete(null);
-    } catch (error) => {
+    } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete item.' });
     }
   };
@@ -188,7 +188,7 @@ export default function InventoryPage() {
                     variant="ghost" 
                     size="icon" 
                     className="h-8 w-8 text-muted-foreground" 
-                    disabled={!isLoggedIn}
+                    disabled={!user || user.uid === 'guest-user'}
                     onClick={() => initiateDeleteItem(item)}
                 >
                     <Icons.trash className="h-4 w-4" />
@@ -219,7 +219,7 @@ export default function InventoryPage() {
           </div>
           <div className="flex gap-2">
             <Dialog open={isUseDialogOpen} onOpenChange={setIsUseDialogOpen}>
-              <DialogTrigger asChild><Button variant="outline" className="flex-1" disabled={!isLoggedIn}><Icons.minus className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
+              <DialogTrigger asChild><Button variant="outline" className="flex-1" disabled={!user || user.uid === 'guest-user'}><Icons.minus className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Use Inventory Item</DialogTitle>
@@ -254,7 +254,7 @@ export default function InventoryPage() {
               </DialogContent>
             </Dialog>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild><Button className="flex-1" disabled={!isLoggedIn}><Icons.plus className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
+              <DialogTrigger asChild><Button className="flex-1" disabled={!user || user.uid === 'guest-user'}><Icons.plus className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Add New Inventory Item</DialogTitle></DialogHeader>
                 <Form {...addForm}><form onSubmit={addForm.handleSubmit(handleAddItem)} className="space-y-4">
@@ -327,3 +327,5 @@ export default function InventoryPage() {
     </>
   );
 }
+
+    
