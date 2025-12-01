@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
@@ -31,7 +30,7 @@ import {
 } from '@/lib/data';
 import { useToast } from './use-toast';
 
-// Helper to convert Firestore Timestamps or ISO strings to JS Dates in any object
+// Helper: Convert Timestamp to Date
 const convertTimestamps = (data: any): any => {
     if (!data) return data;
     if (data instanceof Timestamp) return data.toDate();
@@ -49,7 +48,6 @@ const convertTimestamps = (data: any): any => {
     }
     return data;
 };
-
 
 type UploadQueueItem = 
     | { type: 'set', path: string[], data: any }
@@ -86,7 +84,7 @@ interface DataContextType {
 
   isSyncing: boolean;
   syncWithFirebase: () => Promise<void>;
-  loading: boolean; // General loading state
+  loading: boolean;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -94,14 +92,14 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 const MAIN_COLLECTION_PREFIX = 'TB.';
 const LOG_PAGE_SIZE = 50;
 
-
-// Functions to interact with localStorage
+// --- PERBAIKAN 1: Robust Local Data Fetching ---
 const getLocalData = (key: string, defaultValue: any) => {
     if (typeof window === 'undefined') return defaultValue;
     const saved = localStorage.getItem(key);
     try {
       const parsed = saved ? JSON.parse(saved) : defaultValue;
-      return parsed;
+      // KUNCI PERBAIKAN: Jika parsed null (karena localStorage korup/kosong), paksa pakai defaultValue
+      return parsed ?? defaultValue;
     } catch (e) {
         console.error("Failed to parse local data for key:", key, e);
         return defaultValue;
@@ -110,18 +108,25 @@ const getLocalData = (key: string, defaultValue: any) => {
 
 const setLocalData = (key: string, value: any) => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(key, JSON.stringify(value));
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+        console.error("LocalStorage full or error", e);
+    }
 };
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
     const { user, isLoading: authLoading } = useAuth();
     const { toast } = useToast();
     
-    const [settings, setSettings] = useState<AppSettings | undefined>();
+    // --- PERBAIKAN 2: Inisialisasi State yang Aman ---
+    // Settings tetap undefined di awal untuk menandakan "sedang memuat", 
+    // tapi inventory dan logs DIJAMIN array kosong [].
+    const [settings, setSettings] = useState<AppSettings | undefined>(undefined);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [logs, setLogs] = useState<EngineLog[]>([]);
     const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
-    const [logbookSections, setLogbookSections] = useState<LogSection[] | undefined>();
+    const [logbookSections, setLogbookSections] = useState<LogSection[] | undefined>(undefined);
     
     const [settingsLoading, setSettingsLoading] = useState(true);
     const [inventoryLoading, setInventoryLoading] = useState(true);
@@ -140,9 +145,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const mainCollectionId = shipId ? `${MAIN_COLLECTION_PREFIX}${shipId.toUpperCase()}` : undefined;
     
     const loadLocalData = useCallback(() => {
+        // Jika user belum login/tidak ada shipId, gunakan key default agar tidak crash
         const currentShipId = user?.shipId || 'guest-user';
         const initialData = getInitialData();
         
+        // Memuat data dengan perlindungan anti-null
         setSettings(convertTimestamps(getLocalData(`settings_${currentShipId}`, initialData.settings)));
         setInventory(getLocalData(`inventory_${currentShipId}`, initialData.inventory));
         setLogs(convertTimestamps(getLocalData(`logs_${currentShipId}`, initialData.logs)));
@@ -160,7 +167,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (!db) return;
         const queueKey = `uploadQueue_${shipId}`;
         const queue = getLocalData(queueKey, []);
-        if (queue.length === 0) return;
+        if (!Array.isArray(queue) || queue.length === 0) return; // Tambahan safety check
 
         toast({ title: "Syncing Offline Changes...", description: `Uploading ${queue.length} items.` });
         
@@ -180,13 +187,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
         
         await batch.commit();
-        setLocalData(queueKey, []); // Clear the queue after successful upload
+        setLocalData(queueKey, []); 
         toast({ title: "Offline Changes Synced", description: "Your offline work has been saved to the server." });
     };
 
     const fetchInitialData = useCallback(async (isSilent = false) => {
         if (!user || user.uid === 'guest-user' || !db || !navigator.onLine || !mainCollectionId || !shipId) {
-            if (!isSilent && navigator.onLine) toast({ title: "Sync Failed", description: "You are not logged in.", variant: "destructive" });
+            // Jangan tampilkan error sync jika user memang belum login (guest)
+            if (!isSilent && navigator.onLine && user?.uid !== 'guest-user') {
+                toast({ title: "Sync Failed", description: "You are not logged in.", variant: "destructive" });
+            }
             return;
         }
         
@@ -204,6 +214,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 if (!isSilent) toast({ title: "New Setup", description: `Initializing database for ${shipId}.` });
                 const initialData = getInitialData();
                 const batch = writeBatch(db);
+                // Pastikan shipName masuk ke settings
                 const initialSettings = { ...initialData.settings, shipName: shipId };
                 batch.set(shipDocRef, initialSettings);
                 batch.set(doc(shipDocRef, 'config', 'logbook'), { sections: initialData.logbookSections });
@@ -219,24 +230,29 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'), limit(LOG_PAGE_SIZE))),
             ]);
 
+            // --- SETTINGS ---
             const remoteSettings = settingsSnap.exists() ? convertTimestamps(settingsSnap.data()) : getInitialData().settings;
             setSettings(remoteSettings);
             setLocalData(`settings_${shipId}`, remoteSettings);
             
+            // --- LOGBOOK ---
             const remoteLogbook = logbookSnap.exists() ? logbookSnap.data().sections : getInitialData().logbookSections;
             setLogbookSections(remoteLogbook);
             setLocalData(`logbookSections_${shipId}`, remoteLogbook);
 
+            // --- INVENTORY ---
             const remoteInventory = inventorySnap.docs.map(d => ({ id: d.id, ...d.data() })) as InventoryItem[];
             setInventory(remoteInventory);
             setLocalData(`inventory_${shipId}`, remoteInventory);
 
+            // --- LOGS ---
             const remoteLogs = logsSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
             setLogs(remoteLogs);
             setLocalData(`logs_${shipId}`, remoteLogs);
             setLastLogDoc(logsSnap.docs[logsSnap.docs.length - 1]);
             setHasMoreLogs(logsSnap.docs.length === LOG_PAGE_SIZE);
 
+            // --- ACTIVITY ---
             const remoteActivityLog = activityLogSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
             setActivityLog(remoteActivityLog);
             setLocalData(`activityLog_${shipId}`, remoteActivityLog);
@@ -250,6 +266,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             if (!isSilent) toast({ title: "Sync Error", description: error.message || "Could not sync with Firebase.", variant: "destructive" });
         } finally {
             setIsSyncing(false);
+            // Pastikan loading state dimatikan setelah sync selesai (untuk update pertama)
+            setSettingsLoading(false);
+            setInventoryLoading(false);
+            setLogsLoading(false);
         }
     }, [user, shipId, mainCollectionId, toast, isSyncing]);
 
@@ -301,6 +321,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [loadLocalData]);
 
     useEffect(() => {
+        // Hanya sync otomatis jika bukan guest
         if (user && user.uid !== 'guest-user' && !isSyncing) {
             fetchInitialData(true);
             const interval = setInterval(() => fetchInitialData(true), 15 * 60 * 1000);
@@ -315,7 +336,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         firebaseWriteFn?: () => Promise<any>,
         uploadQueueItem?: UploadQueueItem
     ) => {
-        updateLocalState(); // Always update UI and local storage immediately
+        updateLocalState(); 
 
         if (user?.uid === 'guest-user' || !shipId) return;
         
@@ -327,13 +348,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 if (uploadQueueItem) {
                     const queueKey = `uploadQueue_${shipId}`;
                     const queue = getLocalData(queueKey, []);
-                    setLocalData(queueKey, [...queue, uploadQueueItem]);
+                    setLocalData(queueKey, [...(Array.isArray(queue) ? queue : []), uploadQueueItem]);
                 }
             }
         } else if (uploadQueueItem) {
             const queueKey = `uploadQueue_${shipId}`;
             const queue = getLocalData(queueKey, []);
-            setLocalData(queueKey, [...queue, uploadQueueItem]);
+            setLocalData(queueKey, [...(Array.isArray(queue) ? queue : []), uploadQueueItem]);
             toast({ title: "Offline", description: "Change saved locally and will sync when online." });
         }
     };
@@ -510,5 +531,3 @@ export const useData = () => {
   }
   return context;
 };
-
-    
