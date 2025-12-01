@@ -36,11 +36,19 @@ const sectionColors: { [key: string]: string } = {
 const safeToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
+    if (typeof timestamp.toDate === 'function') { // Firestore Timestamp
+        return timestamp.toDate();
+    }
     if (typeof timestamp === 'string' || typeof timestamp === 'number') {
       const date = new Date(timestamp);
+      // Check if the date is valid
       if (!isNaN(date.getTime())) {
         return date;
       }
+    }
+    // If it's an object from Firestore but not a Timestamp (e.g. from local storage)
+    if (typeof timestamp === 'object' && timestamp.seconds) {
+        return new Date(timestamp.seconds * 1000);
     }
     return null;
 };

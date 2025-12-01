@@ -255,7 +255,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             const interval = setInterval(() => syncWithFirebase(true), 15 * 60 * 1000);
             return () => clearInterval(interval);
         }
-    }, [user?.uid]);
+    }, [user?.uid, syncWithFirebase]);
 
 
     const performWrite = async (
@@ -305,6 +305,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const addLog = async (logData: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         if (!shipId) return;
         const newLogId = `log_${Date.now()}`;
+        // Store timestamp as ISO string for consistency
         const newLog = { ...logData, id: newLogId, timestamp: logData.timestamp.toISOString() };
         
         const updateFn = () => {
@@ -385,6 +386,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const addActivityLog = async (activityData: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         if (!shipId) return;
         const newActivityId = `act_${Date.now()}`;
+        // Store timestamp as ISO string for consistency
         const newActivity = { ...activityData, id: newActivityId, timestamp: activityData.timestamp.toISOString() };
 
         const updateFn = () => {
@@ -452,3 +454,4 @@ export const useData = () => {
   }
   return context;
 };
+
