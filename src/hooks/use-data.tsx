@@ -17,6 +17,9 @@ import {
     writeBatch,
     limit,
     updateDoc,
+    startAfter,
+    DocumentSnapshot,
+    QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import {
     type AppSettings,
@@ -62,6 +65,8 @@ interface DataContextType {
   addLog: (log: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => Promise<string | undefined>;
   deleteLog: (logId: string) => Promise<void>;
   logsLoading: boolean;
+  fetchMoreLogs: () => Promise<void>;
+  hasMoreLogs: boolean;
 
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, 'id'>) => Promise<void>;
@@ -72,6 +77,8 @@ interface DataContextType {
   activityLog: ActivityLog[];
   addActivityLog: (activity: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => Promise<void>;
   activityLogLoading: boolean;
+  fetchMoreActivityLogs: () => Promise<void>;
+  hasMoreActivityLogs: boolean;
 
   logbookSections: LogSection[] | undefined;
   updateLogbookSections: (sections: LogSection[]) => Promise<void>;
@@ -85,6 +92,8 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 const MAIN_COLLECTION_PREFIX = 'TB.';
+const LOG_PAGE_SIZE = 50;
+
 
 // Functions to interact with localStorage
 const getLocalData = (key: string, defaultValue: any) => {
@@ -121,6 +130,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [logbookLoading, setLogbookLoading] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
 
+    // Pagination state
+    const [lastLogDoc, setLastLogDoc] = useState<QueryDocumentSnapshot | null>(null);
+    const [hasMoreLogs, setHasMoreLogs] = useState(true);
+    const [lastActivityLogDoc, setLastActivityLogDoc] = useState<QueryDocumentSnapshot | null>(null);
+    const [hasMoreActivityLogs, setHasMoreActivityLogs] = useState(true);
+
     const shipId = user?.shipId;
     const mainCollectionId = shipId ? `${MAIN_COLLECTION_PREFIX}${shipId.toUpperCase()}` : undefined;
     
@@ -130,8 +145,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         setSettings(convertTimestamps(getLocalData(`settings_${currentShipId}`, initialData.settings)));
         setInventory(getLocalData(`inventory_${currentShipId}`, initialData.inventory));
-        setLogs(getLocalData(`logs_${currentShipId}`, initialData.logs));
-        setActivityLog(getLocalData(`activityLog_${currentShipId}`, initialData.activityLog));
+        setLogs(convertTimestamps(getLocalData(`logs_${currentShipId}`, initialData.logs)));
+        setActivityLog(convertTimestamps(getLocalData(`activityLog_${currentShipId}`, initialData.activityLog)));
         setLogbookSections(getLocalData(`logbookSections_${currentShipId}`, initialData.logbookSections));
         
         setSettingsLoading(false);
@@ -153,7 +168,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         for (const item of queue) {
             const { type, path, data } = item;
-            // The path is ['shipId', ...subPath]
             const docRef = doc(db, mainCollectionId, ...path);
             
             if (type === 'set') {
@@ -170,34 +184,29 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Offline Changes Synced", description: "Your offline work has been saved to the server." });
     };
 
-    const syncWithFirebase = useCallback(async (isSilent = false) => {
+    const fetchInitialData = useCallback(async (isSilent = false) => {
         if (!user || user.uid === 'guest-user' || !db || !navigator.onLine || !mainCollectionId || !shipId) {
             if (!isSilent && navigator.onLine) toast({ title: "Sync Failed", description: "You are not logged in.", variant: "destructive" });
             return;
         }
         
-        if (isSyncing) return; // Prevent concurrent syncs
+        if (isSyncing) return;
         setIsSyncing(true);
         if (!isSilent) toast({ title: "Syncing...", description: "Processing offline changes and fetching server data." });
 
         try {
-            // Step 1: Upload local changes first
             await processUploadQueue(shipId, mainCollectionId);
-
-            // Step 2: Fetch the latest data from the server
-            const shipDocRef = doc(db, mainCollectionId, shipId);
             
+            const shipDocRef = doc(db, mainCollectionId, shipId);
             let settingsSnap = await getDoc(shipDocRef);
 
             if (!settingsSnap.exists()) {
                 if (!isSilent) toast({ title: "New Setup", description: `Initializing database for ${shipId}.` });
                 const initialData = getInitialData();
                 const batch = writeBatch(db);
-
                 const initialSettings = { ...initialData.settings, shipName: shipId };
                 batch.set(shipDocRef, initialSettings);
                 batch.set(doc(shipDocRef, 'config', 'logbook'), { sections: initialData.logbookSections });
-                
                 await batch.commit();
                 settingsSnap = await getDoc(shipDocRef);
             }
@@ -206,11 +215,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             
             const [inventorySnap, logsSnap, activityLogSnap] = await Promise.all([
                 getDocs(query(collection(shipDocRef, 'inventory'))),
-                getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'), limit(50))),
-                getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'), limit(50))),
+                getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'), limit(LOG_PAGE_SIZE))),
+                getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'), limit(LOG_PAGE_SIZE))),
             ]);
 
-            // Step 3: Update local state and storage with fresh server data
             const remoteSettings = settingsSnap.exists() ? convertTimestamps(settingsSnap.data()) : getInitialData().settings;
             setSettings(remoteSettings);
             setLocalData(`settings_${shipId}`, remoteSettings);
@@ -226,10 +234,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             const remoteLogs = logsSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
             setLogs(remoteLogs);
             setLocalData(`logs_${shipId}`, remoteLogs);
-            
+            setLastLogDoc(logsSnap.docs[logsSnap.docs.length - 1]);
+            setHasMoreLogs(logsSnap.docs.length === LOG_PAGE_SIZE);
+
             const remoteActivityLog = activityLogSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
             setActivityLog(remoteActivityLog);
             setLocalData(`activityLog_${shipId}`, remoteActivityLog);
+            setLastActivityLogDoc(activityLogSnap.docs[activityLogSnap.docs.length - 1]);
+            setHasMoreActivityLogs(activityLogSnap.docs.length === LOG_PAGE_SIZE);
 
             if (!isSilent) toast({ title: "Sync Complete", description: "Your data is up to date." });
 
@@ -241,14 +253,57 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user, shipId, mainCollectionId, toast, isSyncing]);
 
+    const syncWithFirebase = fetchInitialData;
+
+    const fetchMoreActivityLogs = async () => {
+        if (!mainCollectionId || !shipId || !db || !lastActivityLogDoc || !hasMoreActivityLogs) return;
+
+        try {
+            const q = query(collection(db, mainCollectionId, shipId, 'activityLog'), orderBy('timestamp', 'desc'), startAfter(lastActivityLogDoc), limit(LOG_PAGE_SIZE));
+            const activityLogSnap = await getDocs(q);
+
+            const newActivityLogs = activityLogSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
+            
+            setActivityLog(prev => [...prev, ...newActivityLogs]);
+            setLocalData(`activityLog_${shipId}`, [...activityLog, ...newActivityLogs]);
+            setLastActivityLogDoc(activityLogSnap.docs[activityLogSnap.docs.length - 1]);
+            setHasMoreActivityLogs(activityLogSnap.docs.length === LOG_PAGE_SIZE);
+
+        } catch (error: any) {
+            console.error("Failed to fetch more activity logs:", error);
+            toast({ title: "Error", description: "Could not load more activities.", variant: "destructive" });
+        }
+    };
+    
+    const fetchMoreLogs = async () => {
+        if (!mainCollectionId || !shipId || !db || !lastLogDoc || !hasMoreLogs) return;
+
+        try {
+            const q = query(collection(db, mainCollectionId, shipId, 'logs'), orderBy('timestamp', 'desc'), startAfter(lastLogDoc), limit(LOG_PAGE_SIZE));
+            const logsSnap = await getDocs(q);
+
+            const newLogs = logsSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
+            
+            setLogs(prev => [...prev, ...newLogs]);
+            setLocalData(`logs_${shipId}`, [...logs, ...newLogs]);
+            setLastLogDoc(logsSnap.docs[logsSnap.docs.length - 1]);
+            setHasMoreLogs(logsSnap.docs.length === LOG_PAGE_SIZE);
+
+        } catch (error: any) {
+            console.error("Failed to fetch more logs:", error);
+            toast({ title: "Error", description: "Could not load more logs.", variant: "destructive" });
+        }
+    };
+
+
     useEffect(() => {
         loadLocalData();
     }, [loadLocalData]);
 
     useEffect(() => {
-        if (user && user.uid !== 'guest-user') {
-            syncWithFirebase(true); // Initial sync on login
-            const interval = setInterval(() => syncWithFirebase(true), 15 * 60 * 1000); // Sync every 15 mins
+        if (user && user.uid !== 'guest-user' && !isSyncing) {
+            fetchInitialData(true);
+            const interval = setInterval(() => fetchInitialData(true), 15 * 60 * 1000);
             return () => clearInterval(interval);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -306,7 +361,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         const updateFn = () => {
             setLogs(prev => {
-                const updated = [newLog as any, ...prev].sort((a, b) => new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime());
+                const updated = [convertTimestamps(newLog), ...prev].sort((a, b) => new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime());
                 setLocalData(`logs_${shipId}`, updated);
                 return updated;
             });
@@ -387,7 +442,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
         const updateFn = () => {
             setActivityLog(prev => {
-                const updated = [newActivity as any, ...prev].sort((a, b) => new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime());
+                const updated = [convertTimestamps(newActivity), ...prev].sort((a, b) => new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime());
                 setLocalData(`activityLog_${shipId}`, updated);
                 return updated;
             });
@@ -435,6 +490,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         isSyncing,
         syncWithFirebase,
         loading,
+        fetchMoreLogs,
+        hasMoreLogs,
+        fetchMoreActivityLogs,
+        hasMoreActivityLogs,
     };
 
     return (

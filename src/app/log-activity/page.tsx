@@ -229,8 +229,9 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
 }
 
 export default function LogActivityPage() {
-    const { activityLog, deleteLog, logs, logbookSections, activityLogLoading, logbookLoading } = useData();
+    const { activityLog, deleteLog, logs, logbookSections, activityLogLoading, logbookLoading, fetchMoreActivityLogs, hasMoreActivityLogs } = useData();
     const { toast } = useToast();
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     const handleDeleteLog = async (logId: string) => {
         try {
@@ -241,13 +242,14 @@ export default function LogActivityPage() {
         }
     };
 
-    // Explicitly sort here to ensure order is always correct
-    const sortedActivities = [...activityLog].sort((a, b) => {
-        const dateA = safeToDate(a.timestamp);
-        const dateB = safeToDate(b.timestamp);
-        if (!dateA || !dateB) return 0;
-        return dateB.getTime() - dateA.getTime();
-    });
+    const handleLoadMore = async () => {
+        setIsLoadingMore(true);
+        await fetchMoreActivityLogs();
+        setIsLoadingMore(false);
+    };
+
+    // Sorting is done in the provider, but we can re-sort if needed. For now, we trust the provider's order.
+    const sortedActivities = activityLog;
 
     const getIcon = (type: ActivityLog['type']) => {
         switch (type) {
@@ -271,7 +273,7 @@ export default function LogActivityPage() {
         <>
             <AppHeader />
             <div className="space-y-4">
-                {(activityLogLoading || logbookLoading) && (
+                {(activityLogLoading || logbookLoading) && sortedActivities.length === 0 && (
                     <div className="space-y-2">
                         <Card className="p-3 h-[74px] animate-pulse" />
                         <Card className="p-3 h-[74px] animate-pulse" />
@@ -346,7 +348,20 @@ export default function LogActivityPage() {
                         )
                     })}
                 </div>
+
+                {hasMoreActivityLogs && (
+                    <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={handleLoadMore}
+                        disabled={isLoadingMore}
+                    >
+                        {isLoadingMore ? "Loading..." : "Muat Selanjutnya"}
+                    </Button>
+                )}
             </div>
         </>
     )
 }
+
+    
