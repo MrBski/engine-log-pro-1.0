@@ -28,31 +28,25 @@ import {
 } from '@/lib/data';
 import { useToast } from './use-toast';
 
-// Helper to convert Firestore Timestamps to JS Dates in any object
-const convertDocTimestamps = (docData: any): any => {
-    if (!docData) return docData;
-
-    const convert = (data: any): any => {
-        if (data instanceof Timestamp) {
-            return data.toDate();
-        }
-        if (Array.isArray(data)) {
-            return data.map(convert);
-        }
-        if (data !== null && typeof data === 'object' && !data.hasOwnProperty('nanoseconds')) { // Avoid converting non-timestamp objects
-            const newObj: { [key: string]: any } = {};
-            for (const key in data) {
-                if (data.hasOwnProperty(key)) {
-                    newObj[key] = convert(data[key]);
-                }
-            }
-            return newObj;
-        }
-        return data;
-    };
-
-    return convert(docData);
+// Helper to convert Firestore Timestamps or ISO strings to JS Dates in any object
+const convertTimestamps = (data: any): any => {
+    if (!data) return data;
+    if (data instanceof Timestamp) return data.toDate();
+    if (typeof data === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(data)) {
+      const date = new Date(data);
+      if (!isNaN(date.getTime())) return date;
+    }
+    if (Array.isArray(data)) return data.map(convertTimestamps);
+    if (typeof data === 'object' && data !== null) {
+      const newObj: { [key: string]: any } = {};
+      for (const key in data) {
+        newObj[key] = convertTimestamps(data[key]);
+      }
+      return newObj;
+    }
+    return data;
 };
+
 
 type UploadQueueItem = 
     | { type: 'set', path: string[], data: any }
@@ -98,7 +92,7 @@ const getLocalData = (key: string, defaultValue: any) => {
     const saved = localStorage.getItem(key);
     try {
       const parsed = saved ? JSON.parse(saved) : defaultValue;
-      return parsed; // Timestamps are stored as ISO strings
+      return parsed;
     } catch (e) {
         console.error("Failed to parse local data for key:", key, e);
         return defaultValue;
@@ -128,12 +122,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [isSyncing, setIsSyncing] = useState(false);
 
     const shipId = user?.shipId;
-    const mainCollectionId = shipId ? `${MAIN_COLLECTION_PREFIX}${shipId}` : undefined;
+    const mainCollectionId = shipId ? `${MAIN_COLLECTION_PREFIX}${shipId.toUpperCase()}` : undefined;
     
     const loadLocalData = useCallback(() => {
         const currentShipId = user?.shipId || 'guest-user';
         const initialData = getInitialData();
-        setSettings(getLocalData(`settings_${currentShipId}`, initialData.settings));
+        
+        setSettings(convertTimestamps(getLocalData(`settings_${currentShipId}`, initialData.settings)));
         setInventory(getLocalData(`inventory_${currentShipId}`, initialData.inventory));
         setLogs(getLocalData(`logs_${currentShipId}`, initialData.logs));
         setActivityLog(getLocalData(`activityLog_${currentShipId}`, initialData.activityLog));
@@ -158,7 +153,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         for (const item of queue) {
             const { type, path, data } = item;
-            const docRef = doc(db, mainCollectionId, shipId, ...path);
+            // The path is ['shipId', ...subPath]
+            const docRef = doc(db, mainCollectionId, ...path);
             
             if (type === 'set') {
                 batch.set(docRef, data);
@@ -193,13 +189,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             
             let settingsSnap = await getDoc(shipDocRef);
 
-            // If ship document doesn't exist, create it with initial data
             if (!settingsSnap.exists()) {
                 if (!isSilent) toast({ title: "New Setup", description: `Initializing database for ${shipId}.` });
                 const initialData = getInitialData();
                 const batch = writeBatch(db);
 
-                batch.set(shipDocRef, { ...initialData.settings, shipName: shipId });
+                const initialSettings = { ...initialData.settings, shipName: shipId };
+                batch.set(shipDocRef, initialSettings);
                 batch.set(doc(shipDocRef, 'config', 'logbook'), { sections: initialData.logbookSections });
                 
                 await batch.commit();
@@ -215,7 +211,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             ]);
 
             // Step 3: Update local state and storage with fresh server data
-            const remoteSettings = settingsSnap.exists() ? convertDocTimestamps(settingsSnap.data()) : getInitialData().settings;
+            const remoteSettings = settingsSnap.exists() ? convertTimestamps(settingsSnap.data()) : getInitialData().settings;
             setSettings(remoteSettings);
             setLocalData(`settings_${shipId}`, remoteSettings);
             
@@ -227,11 +223,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setInventory(remoteInventory);
             setLocalData(`inventory_${shipId}`, remoteInventory);
 
-            const remoteLogs = logsSnap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
+            const remoteLogs = logsSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
             setLogs(remoteLogs);
             setLocalData(`logs_${shipId}`, remoteLogs);
             
-            const remoteActivityLog = activityLogSnap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
+            const remoteActivityLog = activityLogSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
             setActivityLog(remoteActivityLog);
             setLocalData(`activityLog_${shipId}`, remoteActivityLog);
 
@@ -251,11 +247,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         if (user && user.uid !== 'guest-user') {
-            syncWithFirebase(true);
-            const interval = setInterval(() => syncWithFirebase(true), 15 * 60 * 1000);
+            syncWithFirebase(true); // Initial sync on login
+            const interval = setInterval(() => syncWithFirebase(true), 15 * 60 * 1000); // Sync every 15 mins
             return () => clearInterval(interval);
         }
-    }, [user?.uid, syncWithFirebase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.uid]);
 
 
     const performWrite = async (
@@ -265,7 +262,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     ) => {
         updateLocalState(); // Always update UI and local storage immediately
 
-        if (user?.uid === 'guest-user' || !shipId) return; // Don't queue for guest user
+        if (user?.uid === 'guest-user' || !shipId) return;
         
         if (navigator.onLine && firebaseWriteFn) {
             try {
@@ -298,14 +295,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId), newSettings, { merge: true });
-        // Settings are important and should not be queued, they are written directly
+        // Settings don't go to queue, they are written directly or fail
         await performWrite(updateFn, firebaseFn);
     };
 
     const addLog = async (logData: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
-        if (!shipId) return;
+        if (!shipId || !mainCollectionId) return;
         const newLogId = `log_${Date.now()}`;
-        // Store timestamp as ISO string for consistency
         const newLog = { ...logData, id: newLogId, timestamp: logData.timestamp.toISOString() };
         
         const updateFn = () => {
@@ -318,14 +314,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
         const firebaseData = { ...logData, timestamp: Timestamp.fromDate(logData.timestamp) };
         const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId, 'logs', newLogId), firebaseData);
-        const queueItem: UploadQueueItem = { type: 'set', path: ['logs', newLogId], data: firebaseData };
-
+        const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'logs', newLogId], data: firebaseData };
         await performWrite(updateFn, firebaseFn, queueItem);
         return newLogId;
     };
     
     const deleteLog = async (logId: string) => {
-        if (!shipId) return;
+        if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
             setLogs(prev => {
                 const updated = prev.filter(l => l.id !== logId);
@@ -334,12 +329,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => deleteDoc(doc(db, mainCollectionId, shipId, 'logs', logId));
-        const queueItem: UploadQueueItem = { type: 'delete', path: ['logs', logId] };
+        const queueItem: UploadQueueItem = { type: 'delete', path: [shipId, 'logs', logId] };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
 
     const addInventoryItem = async (itemData: Omit<InventoryItem, 'id'>) => {
-        if (!shipId) return;
+        if (!shipId || !mainCollectionId) return;
         const newItemId = `inv_${Date.now()}`;
         const newItem = { ...itemData, id: newItemId };
         
@@ -351,12 +346,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId, 'inventory', newItemId), itemData);
-        const queueItem: UploadQueueItem = { type: 'set', path: ['inventory', newItemId], data: itemData };
+        const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'inventory', newItemId], data: itemData };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
 
     const updateInventoryItem = async (itemId: string, updates: Partial<InventoryItem>) => {
-        if (!shipId) return;
+        if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
             setInventory(prev => {
                 const updated = prev.map(item => item.id === itemId ? { ...item, ...updates } : item);
@@ -365,12 +360,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => updateDoc(doc(db, mainCollectionId, shipId, 'inventory', itemId), updates);
-        const queueItem: UploadQueueItem = { type: 'update', path: ['inventory', itemId], data: updates };
+        const queueItem: UploadQueueItem = { type: 'update', path: [shipId, 'inventory', itemId], data: updates };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
     
     const deleteInventoryItem = async (itemId: string) => {
-        if (!shipId) return;
+        if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
             setInventory(prev => {
                 const updated = prev.filter(item => item.id !== itemId);
@@ -379,14 +374,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => deleteDoc(doc(db, mainCollectionId, shipId, 'inventory', itemId));
-        const queueItem: UploadQueueItem = { type: 'delete', path: ['inventory', itemId] };
+        const queueItem: UploadQueueItem = { type: 'delete', path: [shipId, 'inventory', itemId] };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
 
     const addActivityLog = async (activityData: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
-        if (!shipId) return;
+        if (!shipId || !mainCollectionId) return;
         const newActivityId = `act_${Date.now()}`;
-        // Store timestamp as ISO string for consistency
         const newActivity = { ...activityData, id: newActivityId, timestamp: activityData.timestamp.toISOString() };
 
         const updateFn = () => {
@@ -399,18 +393,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         const firebaseData = { ...activityData, timestamp: Timestamp.fromDate(activityData.timestamp) };
         const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId, 'activityLog', newActivityId), firebaseData);
-        const queueItem: UploadQueueItem = { type: 'set', path: ['activityLog', newActivityId], data: firebaseData };
+        const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'activityLog', newActivityId], data: firebaseData };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
     
     const updateLogbookSections = async (sections: LogSection[]) => {
-        if (!shipId) return;
+        if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
             setLogbookSections(sections);
             setLocalData(`logbookSections_${shipId}`, sections);
         };
         const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId, 'config', 'logbook'), { sections });
-        const queueItem: UploadQueueItem = { type: 'set', path: ['config', 'logbook'], data: { sections } };
+        const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'config', 'logbook'], data: { sections } };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
     
@@ -454,4 +448,3 @@ export const useData = () => {
   }
   return context;
 };
-
