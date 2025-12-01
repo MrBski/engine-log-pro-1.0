@@ -151,14 +151,29 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         try {
             const shipDocRef = doc(db, "ships", shipId);
             
-            // Sync settings, logbook, inventory, logs, activityLog
-            const settingsSnap = await getDoc(shipDocRef);
+            let settingsSnap = await getDoc(shipDocRef);
+
+            // If ship document doesn't exist, create it with initial data
+            if (!settingsSnap.exists()) {
+                toast({ title: "New Setup", description: "Initializing database for this ship." });
+                const initialData = getInitialData();
+                const batch = writeBatch(db);
+
+                batch.set(shipDocRef, initialData.settings);
+                batch.set(doc(shipDocRef, 'config', 'logbook'), { sections: initialData.logbookSections });
+                
+                await batch.commit();
+
+                // Re-fetch the settings snapshot
+                settingsSnap = await getDoc(shipDocRef);
+            }
+            
             const logbookSnap = await getDoc(doc(shipDocRef, 'config', 'logbook'));
             
             const [inventorySnap, logsSnap, activityLogSnap] = await Promise.all([
-                getDocs(query(collection(shipDocRef, 'inventory'), orderBy('name'))),
-                getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'))),
-                getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'))),
+                getDocs(query(collection(shipDocRef, 'inventory'))),
+                getDocs(query(collection(shipDocRef, 'logs'))),
+                getDocs(query(collection(shipDocRef, 'activityLog'))),
             ]);
 
             const remoteSettings = settingsSnap.exists() ? convertDocTimestamps(settingsSnap.data()) : getInitialData().settings;
@@ -195,17 +210,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         loadLocalData();
     }, [loadLocalData]);
 
+    // This effect handles the initial load and scheduled sync
     useEffect(() => {
         if (user && user.uid !== 'guest-user') {
-            syncWithFirebase(true); // Initial silent sync on login
+            // Perform an initial sync on login
+            syncWithFirebase(true);
 
+            // Set up an interval for periodic syncing
             const interval = setInterval(() => {
-                syncWithFirebase(true); // Silent sync every 15 minutes
-            }, 15 * 60 * 1000);
+                syncWithFirebase(true); // isSilent = true
+            }, 15 * 60 * 1000); // 15 minutes
 
+            // Cleanup on unmount or user change
             return () => clearInterval(interval);
         }
-    }, [user, syncWithFirebase]);
+    }, [user, syncWithFirebase]); // Dependency array is crucial
 
 
     const performWrite = async (
@@ -329,7 +348,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await performWrite(updateFn, firebaseFn);
     };
     
-    const loading = settingsLoading || inventoryLoading || logsLoading || activityLogLoading || logbookLoading;
+    const loading = authLoading || settingsLoading || inventoryLoading || logsLoading || activityLogLoading || logbookLoading;
 
     const data: DataContextType = {
         settings,
@@ -369,3 +388,5 @@ export const useData = () => {
   }
   return context;
 };
+
+    
