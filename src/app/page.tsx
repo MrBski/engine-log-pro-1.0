@@ -14,8 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
+import { formatDistanceToNow } from 'date-fns';
 
-// Helper format durasi
 function formatDuration(seconds: number) {
     if (isNaN(seconds)) return "00:00:00";
     const h = Math.floor(seconds / 3600);
@@ -37,6 +37,12 @@ const safeToDate = (timestamp: any): Date | null => {
     return null;
 };
 
+// Helper untuk format tanggal pendek
+const formatShortDate = (date: Date | null) => {
+    if (!date) return "-";
+    return date.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
 export default function DashboardPage() {
   const { 
     inventory, logs, settings, 
@@ -45,8 +51,6 @@ export default function DashboardPage() {
   } = useData();
   
   const [mounted, setMounted] = useState(false);
-  
-  // State untuk timer real-time
   const [genElapsed, setGenElapsed] = useState(0); 
   const [meElapsed, setMeElapsed] = useState(0);
   
@@ -57,11 +61,9 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
 
-  // --- LOGIC TIMER (Generator & ME) ---
   useEffect(() => {
     if (!settings) return;
 
-    // Fungsi hitung awal
     const calculateSeconds = (totalHours: number, startTime: number | null | undefined, status: string | undefined) => {
         if (status === 'on' && startTime) {
             const elapsed = (Date.now() - startTime) / 1000;
@@ -70,18 +72,14 @@ export default function DashboardPage() {
         return totalHours * 3600;
     };
 
-    // Set nilai awal
     setGenElapsed(calculateSeconds(settings.generatorRunningHours || 0, settings.generatorStartTime, settings.generatorStatus));
-    setMeElapsed(calculateSeconds(settings.runningHours || 0, settings.mainEngineStartTime, settings.mainEngineStatus)); // Asumsi field baru: mainEngineStartTime
+    setMeElapsed(calculateSeconds(settings.runningHours || 0, settings.mainEngineStartTime, settings.mainEngineStatus)); 
 
-    // Interval update setiap detik
     const interval = setInterval(() => {
         if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
             const elapsed = (Date.now() - settings.generatorStartTime) / 1000;
             setGenElapsed(((settings.generatorRunningHours || 0) * 3600) + elapsed);
         }
-        
-        // Cek status ME (Asumsi field settings.mainEngineStatus ada)
         if (settings.mainEngineStatus === 'on' && settings.mainEngineStartTime) {
             const elapsed = (Date.now() - settings.mainEngineStartTime) / 1000;
             setMeElapsed(((settings.runningHours || 0) * 3600) + elapsed);
@@ -127,11 +125,9 @@ export default function DashboardPage() {
      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed reset." }); }
   };
 
-  // --- HANDLER MAIN ENGINE (Baru) ---
+  // --- HANDLER MAIN ENGINE ---
   const handleMEToggle = async () => {
     if (!settings || !user || !user.name) return;
-    
-    // Asumsi field baru di settings: mainEngineStatus, mainEngineStartTime, runningHours(sudah ada)
     const isMeOn = settings.mainEngineStatus === 'on';
 
     if (isMeOn) {
@@ -143,10 +139,12 @@ export default function DashboardPage() {
         await updateSettings({
             mainEngineStatus: 'off',
             mainEngineStartTime: null,
+            mainEngineLastStopped: new Date(), // Simpan waktu mati
             runningHours: (settings.runningHours || 0) + elapsedHours,
         });
+        // Pastikan type 'main_engine' digunakan agar icon Log Activity benar (jika Log Activity sudah support)
         await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'M.E. Stopped (FWE)', officer: user.name });
-        toast({ title: "M.E. Stopped", description: "Running hours updated." });
+        toast({ title: "M.E. Stopped", description: "Recorded as FWE." });
       } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to stop M.E." }); }
     } else {
       // Turn ON ME
@@ -156,13 +154,11 @@ export default function DashboardPage() {
             mainEngineStartTime: Date.now(),
         });
         await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'M.E. Started (SBE)', officer: user.name });
-        toast({ title: "M.E. Started", description: "Tracking started." });
+        toast({ title: "M.E. Started", description: "Tracking started (SBE)." });
       } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to start M.E." }); }
     }
   };
 
-
-  // --- DATA VISUALIZATION ---
   const lowStockItems = (inventory || []).filter(item => item.stock <= item.lowStockThreshold);
   const sortedLogs = [...(logs || [])].sort((a, b) => {
     const dateA = safeToDate(a.timestamp);
@@ -203,8 +199,19 @@ export default function DashboardPage() {
 
   if (!settings) return <div>Data Error</div>;
 
-  // CSS Class untuk efek Ambient Hijau
-  const activeCardClass = "border-green-500 ring-1 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all duration-300";
+  // --- AMBIENT STYLE LOGIC ---
+  // Generator: Ambient Biru (Blue Shadow)
+  // ON: Border Hijau, OFF: Border Merah
+  const genCardClass = settings.generatorStatus === 'on' 
+    ? "border-green-500 shadow-[0_0_20px_rgba(59,130,246,0.5)] bg-slate-950/50" // Hijau + Glow Biru
+    : "border-red-500 shadow-[0_0_10px_rgba(59,130,246,0.3)] bg-slate-950/30"; // Merah + Glow Biru Redup
+
+  // M.E: Ambient Kuning (Yellow Shadow)
+  // ON: Border Hijau, OFF: Border Merah
+  const meCardClass = settings.mainEngineStatus === 'on'
+    ? "border-green-500 shadow-[0_0_20px_rgba(234,179,8,0.5)] bg-slate-950/50" // Hijau + Glow Kuning
+    : "border-red-500 shadow-[0_0_10px_rgba(234,179,8,0.3)] bg-slate-950/30"; // Merah + Glow Kuning Redup
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -212,15 +219,21 @@ export default function DashboardPage() {
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         
         {/* --- MAIN ENGINE CARD --- */}
-        <Card className={cn("flex flex-col p-4 justify-between transition-all", settings.mainEngineStatus === 'on' ? activeCardClass : "")}>
+        <Card className={cn("flex flex-col p-4 justify-between transition-all duration-300", meCardClass)}>
           <div className="flex-1">
               <div className="flex items-start">
-                <Icons.clock className={cn("h-6 w-6 mr-4", settings.mainEngineStatus === 'on' ? "text-green-500 animate-pulse" : "text-muted-foreground")} />
+                {/* Icon ikut berubah warna */}
+                <Icons.anchor className={cn("h-6 w-6 mr-4", settings.mainEngineStatus === 'on' ? "text-green-500 animate-pulse" : "text-muted-foreground")} />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
                   <p className="text-xl font-bold">{formatDuration(meElapsed)}</p>
+                  
+                  {/* LOGIC TEXT STATUS */}
                   <p className="text-xs text-muted-foreground mt-1">
-                      Status: {settings.mainEngineStatus === 'on' ? <span className="text-green-500 font-bold">RUNNING</span> : "STOPPED"}
+                      {settings.mainEngineStatus === 'on' 
+                        ? <span className="text-green-400">Started: {formatShortDate(safeToDate(settings.mainEngineStartTime))}</span>
+                        : <span className="text-red-400">Last Stopped: {formatShortDate(safeToDate(settings.mainEngineLastStopped))}</span>
+                      }
                   </p>
                 </div>
               </div>
@@ -228,7 +241,7 @@ export default function DashboardPage() {
           <div className="flex justify-end gap-2 mt-2">
                  <Button 
                     size="icon" 
-                    className={cn("h-8 w-8", settings.mainEngineStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
+                    className={cn("h-8 w-8", settings.mainEngineStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-500 hover:bg-red-600")}
                     onClick={handleMEToggle}
                     disabled={!user}
                 >
@@ -238,20 +251,27 @@ export default function DashboardPage() {
         </Card>
 
         {/* --- GENERATOR CARD --- */}
-        <Card className={cn("flex flex-col p-4 justify-between transition-all", settings.generatorStatus === 'on' ? activeCardClass : "")}>
+        <Card className={cn("flex flex-col p-4 justify-between transition-all duration-300", genCardClass)}>
             <div className="flex-1">
               <div className="flex items-start">
-                <Icons.clock className={cn("h-6 w-6 mr-4", settings.generatorStatus === 'on' ? "text-green-500 animate-pulse" : "text-muted-foreground")} />
+                <Icons.zap className={cn("h-6 w-6 mr-4", settings.generatorStatus === 'on' ? "text-green-500 animate-pulse" : "text-muted-foreground")} />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
                    <p className="text-xl font-bold">{formatDuration(genElapsed)}</p>
+                   {/* Generator Status Text */}
+                   <p className="text-xs text-muted-foreground mt-1">
+                      {settings.generatorStatus === 'on' 
+                        ? <span className="text-green-400">On Duty</span>
+                        : <span className="text-muted-foreground">Standby</span>
+                      }
+                  </p>
                 </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-2">
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="icon" className="h-8 w-8" disabled={!user}><Icons.reset /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white" disabled={!user}><Icons.reset /></Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader><AlertDialogTitle>Reset Generator RHS?</AlertDialogTitle><AlertDialogDescription>This will reset to 0.</AlertDialogDescription></AlertDialogHeader>
@@ -263,7 +283,7 @@ export default function DashboardPage() {
                 </AlertDialog>
                 <Button 
                     size="icon" 
-                    className={cn("h-8 w-8", settings?.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
+                    className={cn("h-8 w-8", settings?.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-500 hover:bg-red-600")}
                     onClick={handleGeneratorToggle}
                     disabled={!user}
                 >
@@ -272,7 +292,7 @@ export default function DashboardPage() {
             </div>
         </Card>
 
-        {/* --- FUEL CARD --- */}
+        {/* --- FUEL CARD (Tetap) --- */}
         <Card className="flex items-center p-4">
           <Icons.fuel className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
@@ -281,7 +301,7 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* --- ALERTS CARD --- */}
+        {/* --- ALERTS CARD (Tetap) --- */}
         <Card className="flex items-center p-4">
           <Icons.alert className="h-6 w-6 text-destructive mr-4" />
           <div className="flex-1">
@@ -292,7 +312,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* ... (BAGIAN TABLE DAN CHART TIDAK BERUBAH, SAMA SEPERTI SEBELUMNYA) ... */}
+        {/* TABEL LOGS DAN CHART TETAP SAMA */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Recent Logs</CardTitle>
