@@ -38,9 +38,14 @@ const getUserName = (firebaseUser: FirebaseUser | null): string => {
 }
 
 const getShipId = (firebaseUser: FirebaseUser | null): string => {
-    // In a multi-tenant app, you'd get this from a custom claim or a user profile document.
-    // For now, we use the user's UID as their unique "ship ID" or tenant ID.
-    return firebaseUser ? firebaseUser.uid : GUEST_SHIP_ID;
+    if (firebaseUser && firebaseUser.email) {
+        const domain = firebaseUser.email.split('@')[1];
+        if (domain) {
+            return domain.split('.')[0].toUpperCase();
+        }
+    }
+    // Fallback for guest or if email domain is unusual
+    return GUEST_SHIP_ID;
 }
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -50,7 +55,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const storedUser = localStorage.getItem('authUser');
     if (storedUser) {
-        setUser(JSON.parse(storedUser));
+        try {
+            setUser(JSON.parse(storedUser));
+        } catch (e) {
+            console.error("Failed to parse stored user", e);
+            localStorage.removeItem('authUser');
+        }
     }
     
     if (!auth) {
@@ -124,5 +134,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-    
