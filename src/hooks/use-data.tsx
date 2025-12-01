@@ -144,7 +144,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user?.shipId]);
 
     const syncWithFirebase = useCallback(async (isSilent = false) => {
-        if (!user || user.uid === 'guest-user' || !db || !navigator.onLine || !mainCollectionId) {
+        if (!user || user.uid === 'guest-user' || !db || !navigator.onLine || !mainCollectionId || !shipId) {
             if (!isSilent) toast({ title: "Sync Failed", description: "You are offline or not logged in.", variant: "destructive" });
             return;
         }
