@@ -17,8 +17,6 @@ import {
     query,
     orderBy,
     writeBatch,
-    onSnapshot,
-    Unsubscribe,
 } from 'firebase/firestore';
 import {
     type AppSettings,
@@ -28,6 +26,7 @@ import {
     type LogSection,
     getInitialData,
 } from '@/lib/data';
+import { useToast } from './use-toast';
 
 // Helper to convert Firestore Timestamps to JS Dates in any object
 const convertDocTimestamps = (docData: any): any => {
@@ -81,6 +80,7 @@ interface DataContextType {
   logbookLoading: boolean;
 
   isSyncing: boolean;
+  syncWithFirebase: () => Promise<void>;
   loading: boolean; // General loading state
 }
 
@@ -90,10 +90,9 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 const getLocalData = (key: string, defaultValue: any) => {
     if (typeof window === 'undefined') return defaultValue;
     const saved = localStorage.getItem(key);
-    // Ensure timestamps stored as strings are converted to Date objects
     try {
       const parsed = saved ? JSON.parse(saved) : defaultValue;
-      return convertTimestampsInLocalStorage(parsed);
+      return parsed; // Timestamps are stored as ISO strings
     } catch (e) {
         console.error("Failed to parse local data for key:", key, e);
         return defaultValue;
@@ -105,28 +104,10 @@ const setLocalData = (key: string, value: any) => {
     localStorage.setItem(key, JSON.stringify(value));
 };
 
-const convertTimestampsInLocalStorage = (data: any): any => {
-    if (typeof data === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(data)) {
-        return new Date(data);
-    }
-    if (Array.isArray(data)) {
-        return data.map(convertTimestampsInLocalStorage);
-    }
-    if (data !== null && typeof data === 'object') {
-        const newObj: { [key: string]: any } = {};
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                newObj[key] = convertTimestampsInLocalStorage(data[key]);
-            }
-        }
-        return newObj;
-    }
-    return data;
-};
-
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
     const { user, isLoading: authLoading } = useAuth();
+    const { toast } = useToast();
     
     const [settings, setSettings] = useState<AppSettings | undefined>();
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -143,16 +124,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const shipId = user?.shipId || "guest-ship";
     
-    // This effect now correctly depends on user.uid, a stable string, instead of the user object.
-    useEffect(() => {
-        if (authLoading) {
-            return; // Wait until authentication is resolved
-        }
-
+    const loadLocalData = useCallback(() => {
         const currentShipId = user?.shipId || 'guest-ship';
-        const isLoggedIn = user && user.uid !== 'guest-user';
-        
-        // Always load local data first for instant UI
         const initialData = getInitialData();
         setSettings(getLocalData(`settings_${currentShipId}`, initialData.settings));
         setInventory(getLocalData(`inventory_${currentShipId}`, initialData.inventory));
@@ -160,81 +133,92 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         setActivityLog(getLocalData(`activityLog_${currentShipId}`, initialData.activityLog));
         setLogbookSections(getLocalData(`logbookSections_${currentShipId}`, initialData.logbookSections));
         
-        // Set loading states to false after initial local load
         setSettingsLoading(false);
         setInventoryLoading(false);
         setLogsLoading(false);
         setActivityLogLoading(false);
         setLogbookLoading(false);
+    }, [user?.shipId]);
 
-        if (!isLoggedIn || !db) {
-            // For guests, we're done after loading local data.
+    const syncWithFirebase = useCallback(async (isSilent = false) => {
+        if (!user || user.uid === 'guest-user' || !db || !navigator.onLine) {
+            if (!isSilent) toast({ title: "Sync Failed", description: "You are offline or not logged in.", variant: "destructive" });
             return;
         }
-        
-        // --- Logged-in user logic: Setup Firebase listeners ---
-        const unsubscribes: Unsubscribe[] = [];
-        const shipDocRef = doc(db, "ships", currentShipId);
         setIsSyncing(true);
+        if (!isSilent) toast({ title: "Syncing...", description: "Fetching latest data from server." });
 
-        // Settings
-        unsubscribes.push(onSnapshot(shipDocRef, (snap) => {
-            const data = snap.exists() ? convertDocTimestamps(snap.data()) : getInitialData().settings;
-            setSettings(data as AppSettings);
-            setLocalData(`settings_${currentShipId}`, data);
-        }, (error) => console.error("Error on settings listener:", error)));
+        try {
+            const shipDocRef = doc(db, "ships", shipId);
+            
+            // Sync settings, logbook, inventory, logs, activityLog
+            const settingsSnap = await getDoc(shipDocRef);
+            const logbookSnap = await getDoc(doc(shipDocRef, 'config', 'logbook'));
+            
+            const [inventorySnap, logsSnap, activityLogSnap] = await Promise.all([
+                getDocs(query(collection(shipDocRef, 'inventory'), orderBy('name'))),
+                getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'))),
+                getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'))),
+            ]);
 
-        // Inventory (sorted by name)
-        unsubscribes.push(onSnapshot(collection(shipDocRef, 'inventory'), (snap) => {
-            const items = snap.docs.map(d => ({ id: d.id, ...d.data() })) as InventoryItem[];
-            const sortedItems = items.sort((a,b) => a.name.localeCompare(b.name));
-            setInventory(sortedItems);
-            setLocalData(`inventory_${currentShipId}`, sortedItems);
-        }, (error) => console.error("Error on inventory listener:", error)));
+            const remoteSettings = settingsSnap.exists() ? convertDocTimestamps(settingsSnap.data()) : getInitialData().settings;
+            setSettings(remoteSettings);
+            setLocalData(`settings_${shipId}`, remoteSettings);
+            
+            const remoteLogbook = logbookSnap.exists() ? logbookSnap.data().sections : getInitialData().logbookSections;
+            setLogbookSections(remoteLogbook);
+            setLocalData(`logbookSections_${shipId}`, remoteLogbook);
 
-        // Logs
-        const logsQuery = query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'));
-        unsubscribes.push(onSnapshot(logsQuery, (snap) => {
-            const items = snap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
-            setLogs(items);
-            setLocalData(`logs_${currentShipId}`, items);
-        }, (error) => console.error("Error on logs listener:", error)));
-        
-        // Activity Log
-        const activityQuery = query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'));
-        unsubscribes.push(onSnapshot(activityQuery, (snap) => {
-            const items = snap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
-            setActivityLog(items);
-            setLocalData(`activityLog_${currentShipId}`, items);
-        }, (error) => console.error("Error on activityLog listener:", error)));
+            const remoteInventory = inventorySnap.docs.map(d => ({ id: d.id, ...d.data() })) as InventoryItem[];
+            setInventory(remoteInventory);
+            setLocalData(`inventory_${shipId}`, remoteInventory);
 
-        // Logbook Sections
-        unsubscribes.push(onSnapshot(doc(shipDocRef, 'config', 'logbook'), (snap) => {
-            const sections = (snap.exists() ? snap.data().sections : getInitialData().logbookSections) as LogSection[];
-            setLogbookSections(sections);
-            setLocalData(`logbookSections_${currentShipId}`, sections);
-        }));
-        
-        // Stop showing syncing indicator after a short delay
-        setTimeout(() => setIsSyncing(false), 1500);
+            const remoteLogs = logsSnap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
+            setLogs(remoteLogs);
+            setLocalData(`logs_${shipId}`, remoteLogs);
+            
+            const remoteActivityLog = activityLogSnap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
+            setActivityLog(remoteActivityLog);
+            setLocalData(`activityLog_${shipId}`, remoteActivityLog);
 
-        return () => {
-            unsubscribes.forEach(unsub => unsub());
-        };
-    }, [user?.uid, authLoading]); // DEPEND ON STABLE VALUES!
+            if (!isSilent) toast({ title: "Sync Complete", description: "Your data is up to date." });
+
+        } catch (error) {
+            console.error("Firebase sync failed:", error);
+            if (!isSilent) toast({ title: "Sync Error", description: "Could not fetch data from Firebase.", variant: "destructive" });
+        } finally {
+            setIsSyncing(false);
+        }
+    }, [user, shipId, toast]);
+
+    useEffect(() => {
+        loadLocalData();
+    }, [loadLocalData]);
+
+    useEffect(() => {
+        if (user && user.uid !== 'guest-user') {
+            syncWithFirebase(true); // Initial silent sync on login
+
+            const interval = setInterval(() => {
+                syncWithFirebase(true); // Silent sync every 15 minutes
+            }, 15 * 60 * 1000);
+
+            return () => clearInterval(interval);
+        }
+    }, [user, syncWithFirebase]);
+
 
     const performWrite = async (
         updateLocalState: () => void,
         firebaseWriteFn?: () => Promise<any>
     ) => {
-        // Optimistically update UI and save to localStorage
-        updateLocalState();
-
+        updateLocalState(); // Always update UI and local storage immediately
         if (db && user && user.uid !== 'guest-user' && navigator.onLine && firebaseWriteFn) {
             try {
                 await firebaseWriteFn();
             } catch (error) {
                 console.error("Firebase write failed, but data is saved locally:", error);
+                toast({ title: "Sync Failed", description: "Could not save to server. Data is saved locally.", variant: 'destructive'});
             }
         }
     };
@@ -253,13 +237,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await performWrite(updateFn, firebaseFn);
     };
 
-    const addLog = async (logData: Omit<EngineLog, 'id'>) => {
+    const addLog = async (logData: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         const newLogId = `log_${Date.now()}`;
-        const newLog = { ...logData, id: newLogId };
+        const newLog = { ...logData, id: newLogId, timestamp: logData.timestamp.toISOString() };
         
         const updateFn = () => {
             setLogs(prev => {
-                const updated = [newLog as EngineLog, ...prev].sort((a, b) => (new Date(b.timestamp as string)).getTime() - (new Date(a.timestamp as string)).getTime());
+                const updated = [newLog as EngineLog, ...prev].sort((a, b) => new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime());
                 setLocalData(`logs_${shipId}`, updated);
                 return updated;
             });
@@ -323,11 +307,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const addActivityLog = async (activityData: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         const newActivityId = `act_${Date.now()}`;
-        const newActivity = { ...activityData, id: newActivityId };
+        const newActivity = { ...activityData, id: newActivityId, timestamp: activityData.timestamp.toISOString() };
 
         const updateFn = () => {
             setActivityLog(prev => {
-                const updated = [newActivity as ActivityLog, ...prev].sort((a, b) => (new Date(b.timestamp as string)).getTime() - (new Date(a.timestamp as string)).getTime());
+                const updated = [newActivity as ActivityLog, ...prev].sort((a, b) => new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime());
                 setLocalData(`activityLog_${shipId}`, updated);
                 return updated;
             });
@@ -367,6 +351,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         activityLogLoading,
         logbookLoading,
         isSyncing,
+        syncWithFirebase,
         loading,
     };
 

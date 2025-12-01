@@ -13,8 +13,8 @@ import { useData } from '@/hooks/use-data';
 
 export function AppHeader() {
   const pathname = usePathname();
-  const { settings } = useData();
-  const { user, logout } = useAuth();
+  const { settings, syncWithFirebase, isSyncing } = useData();
+  const { user } = useAuth();
 
 
   const getBreadcrumb = () => {
@@ -59,16 +59,11 @@ export function AppHeader() {
       </div>
       <div className="flex items-center gap-2 md:gap-4">
         <SyncStatus />
-        {/* We hide the avatar and logout button for now, as login is not required */}
-        {/*
-        <Avatar className="size-8 md:size-10">
-            <AvatarImage src={`https://picsum.photos/seed/${user?.name}/40/40`} data-ai-hint="profile picture" alt={user?.name} />
-            <AvatarFallback>{user?.name.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
-        <Button variant="ghost" size="icon" onClick={logout}>
-          <Icons.logout className="h-5 w-5" />
-        </Button>
-        */}
+        {user && user.uid !== 'guest-user' && (
+          <Button variant="ghost" size="icon" onClick={syncWithFirebase} disabled={isSyncing}>
+            <Icons.reset className={`h-5 w-5 ${isSyncing ? 'animate-spin' : ''}`} />
+          </Button>
+        )}
       </div>
     </header>
   );
