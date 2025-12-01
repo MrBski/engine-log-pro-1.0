@@ -2,7 +2,6 @@
 'use client';
 
 import { useAuth } from '@/hooks/use-auth';
-import { usePathname } from 'next/navigation';
 import BottomNav from '@/components/bottom-nav';
 import { useEffect, useState } from 'react';
 import { Icons } from './icons';
@@ -17,7 +16,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   // While waiting for client-side hydration, show a minimal loader.
   // This flicker should be very brief on subsequent loads.
-  if (!isClient || authIsLoading) {
+  if (!isClient) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background text-foreground">
         <Icons.logo className="h-20 w-24" />
@@ -25,7 +24,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
+  
   // Render the main app layout immediately.
   // The DataProvider will handle showing skeleton loaders inside the children components.
   return (
