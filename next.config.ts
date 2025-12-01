@@ -44,5 +44,3 @@ const withPWA = WithPWA({
 });
 
 export default withPWA(nextConfig);
-
-    
