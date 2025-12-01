@@ -142,156 +142,99 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [isSyncing, setIsSyncing] = useState(false);
 
     const shipId = user?.shipId || "guest-ship";
+    
+    // This effect now correctly depends on user.uid, a stable string, instead of the user object.
+    useEffect(() => {
+        if (authLoading) {
+            return; // Wait until authentication is resolved
+        }
 
-    const loadInitialData = useCallback(() => {
-        const initialData = getInitialData();
-        const shipIdToLoad = user?.shipId || "guest-ship";
-
-        setSettings(getLocalData(`settings_${shipIdToLoad}`, initialData.settings));
-        setInventory(getLocalData(`inventory_${shipIdToLoad}`, initialData.inventory));
-        setLogs(getLocalData(`logs_${shipIdToLoad}`, initialData.logs));
-        const activities = getLocalData(`activityLog_${shipIdToLoad}`, initialData.activityLog);
-        setActivityLog(activities.sort((a: ActivityLog, b: ActivityLog) => (new Date(b.timestamp as string)).getTime() - (new Date(a.timestamp as string)).getTime()));
-        setLogbookSections(getLocalData(`logbookSections_${shipIdToLoad}`, initialData.logbookSections));
+        const currentShipId = user?.shipId || 'guest-ship';
+        const isLoggedIn = user && user.uid !== 'guest-user';
         
+        // Always load local data first for instant UI
+        const initialData = getInitialData();
+        setSettings(getLocalData(`settings_${currentShipId}`, initialData.settings));
+        setInventory(getLocalData(`inventory_${currentShipId}`, initialData.inventory));
+        setLogs(getLocalData(`logs_${currentShipId}`, initialData.logs));
+        setActivityLog(getLocalData(`activityLog_${currentShipId}`, initialData.activityLog));
+        setLogbookSections(getLocalData(`logbookSections_${currentShipId}`, initialData.logbookSections));
+        
+        // Set loading states to false after initial local load
         setSettingsLoading(false);
         setInventoryLoading(false);
         setLogsLoading(false);
         setActivityLogLoading(false);
         setLogbookLoading(false);
-    }, [user?.shipId]);
 
-    useEffect(() => {
-        loadInitialData();
-    }, [loadInitialData]);
-
-    const syncLocalToFirebase = useCallback(async () => {
-        if (!db || !user || user.uid === 'guest-user') return;
-        
-        console.log("Starting sync from local to Firebase...");
-        setIsSyncing(true);
-
-        try {
-            const batch = writeBatch(db);
-            const shipDocRef = doc(db, "ships", shipId);
-            
-            const localSettings = getLocalData(`settings_${shipId}`, null);
-            if (localSettings) batch.set(shipDocRef, localSettings, { merge: true });
-
-            const localLogbook = getLocalData(`logbookSections_${shipId}`, null);
-            if (localLogbook) batch.set(doc(shipDocRef, 'config', 'logbook'), { sections: localLogbook });
-            
-            const collectionsToSync = ['inventory', 'logs', 'activityLog'];
-            for (const collName of collectionsToSync) {
-                const localItems = getLocalData(`${collName}_${shipId}`, []);
-                const fsQuery = query(collection(shipDocRef, collName));
-                const fsSnap = await getDocs(fsQuery);
-                const fsIds = new Set(fsSnap.docs.map(d => d.id));
-                
-                for (const item of localItems) {
-                    if (!fsIds.has(item.id)) {
-                        console.log(`Syncing new item ${item.id} to ${collName}`);
-                        const docRef = doc(collection(shipDocRef, collName), item.id);
-                        batch.set(docRef, item);
-                    }
-                }
-            }
-
-            await batch.commit();
-            console.log("Sync successful!");
-        } catch (error) {
-            console.error("Error syncing data to Firebase:", error);
-        } finally {
-            setIsSyncing(false);
-        }
-    }, [user, shipId]);
-
-
-    useEffect(() => {
-        if (authLoading) return;
-
-        const isLoggedIn = user && user.uid !== 'guest-user';
-        
         if (!isLoggedIn || !db) {
-            loadInitialData(); // Ensure local data is loaded for guest
+            // For guests, we're done after loading local data.
             return;
         }
-
-        // --- Logged-in user logic ---
-        syncLocalToFirebase();
-
+        
+        // --- Logged-in user logic: Setup Firebase listeners ---
         const unsubscribes: Unsubscribe[] = [];
-        const shipDocRef = doc(db, "ships", shipId);
+        const shipDocRef = doc(db, "ships", currentShipId);
         setIsSyncing(true);
 
-        const setupListener = <T,>(collName: string, stateSetter: React.Dispatch<React.SetStateAction<T[]>>, loadingSetter: React.Dispatch<React.SetStateAction<boolean>>) => {
-            const q = query(collection(shipDocRef, collName), orderBy('timestamp', 'desc'));
-            return onSnapshot(q, (snap) => {
-                const items = snap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as T[];
-                stateSetter(items);
-                setLocalData(`${collName}_${shipId}`, items);
-                loadingSetter(false);
-            }, (error) => {
-                console.error(`Error on ${collName} listener:`, error);
-                loadingSetter(false);
-            });
-        };
-        
         // Settings
         unsubscribes.push(onSnapshot(shipDocRef, (snap) => {
             const data = snap.exists() ? convertDocTimestamps(snap.data()) : getInitialData().settings;
             setSettings(data as AppSettings);
-            setLocalData(`settings_${shipId}`, data);
-            setSettingsLoading(false);
-        }));
+            setLocalData(`settings_${currentShipId}`, data);
+        }, (error) => console.error("Error on settings listener:", error)));
 
         // Inventory (sorted by name)
         unsubscribes.push(onSnapshot(collection(shipDocRef, 'inventory'), (snap) => {
             const items = snap.docs.map(d => ({ id: d.id, ...d.data() })) as InventoryItem[];
             const sortedItems = items.sort((a,b) => a.name.localeCompare(b.name));
             setInventory(sortedItems);
-            setLocalData(`inventory_${shipId}`, sortedItems);
-            setInventoryLoading(false);
-        }));
+            setLocalData(`inventory_${currentShipId}`, sortedItems);
+        }, (error) => console.error("Error on inventory listener:", error)));
 
         // Logs
-        unsubscribes.push(setupListener<EngineLog>('logs', setLogs, setLogsLoading));
+        const logsQuery = query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'));
+        unsubscribes.push(onSnapshot(logsQuery, (snap) => {
+            const items = snap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
+            setLogs(items);
+            setLocalData(`logs_${currentShipId}`, items);
+        }, (error) => console.error("Error on logs listener:", error)));
         
         // Activity Log
-        unsubscribes.push(setupListener<ActivityLog>('activityLog', setActivityLog, setActivityLogLoading));
+        const activityQuery = query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'));
+        unsubscribes.push(onSnapshot(activityQuery, (snap) => {
+            const items = snap.docs.map(d => convertDocTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
+            setActivityLog(items);
+            setLocalData(`activityLog_${currentShipId}`, items);
+        }, (error) => console.error("Error on activityLog listener:", error)));
 
         // Logbook Sections
         unsubscribes.push(onSnapshot(doc(shipDocRef, 'config', 'logbook'), (snap) => {
             const sections = (snap.exists() ? snap.data().sections : getInitialData().logbookSections) as LogSection[];
             setLogbookSections(sections);
-            setLocalData(`logbookSections_${shipId}`, sections);
-            setLogbookLoading(false);
+            setLocalData(`logbookSections_${currentShipId}`, sections);
         }));
         
-        Promise.all([
-           getDoc(shipDocRef),
-           getDocs(collection(shipDocRef, 'inventory')),
-        ]).finally(() => setIsSyncing(false));
+        // Stop showing syncing indicator after a short delay
+        setTimeout(() => setIsSyncing(false), 1500);
 
         return () => {
             unsubscribes.forEach(unsub => unsub());
         };
-    }, [user, authLoading, shipId, loadInitialData, syncLocalToFirebase]);
+    }, [user?.uid, authLoading]); // DEPEND ON STABLE VALUES!
 
     const performWrite = async (
         updateLocalState: () => void,
-        localDataKey: string,
         firebaseWriteFn?: () => Promise<any>
     ) => {
-        // Optimistically update UI
+        // Optimistically update UI and save to localStorage
         updateLocalState();
 
-        if (db && user && user.uid !== 'guest-user' && firebaseWriteFn) {
+        if (db && user && user.uid !== 'guest-user' && navigator.onLine && firebaseWriteFn) {
             try {
                 await firebaseWriteFn();
             } catch (error) {
                 console.error("Firebase write failed, but data is saved locally:", error);
-                // Data is already saved locally and will sync on next app load
             }
         }
     };
@@ -307,7 +250,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => setDoc(doc(db, "ships", shipId), newSettings, { merge: true });
-        await performWrite(updateFn, `settings_${shipId}`, firebaseFn);
+        await performWrite(updateFn, firebaseFn);
     };
 
     const addLog = async (logData: Omit<EngineLog, 'id'>) => {
@@ -323,7 +266,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         };
         const firebaseFn = () => setDoc(doc(db, 'ships', shipId, 'logs', newLogId), { ...logData, timestamp: Timestamp.fromDate(logData.timestamp) });
         
-        await performWrite(updateFn, `logs_${shipId}`, firebaseFn);
+        await performWrite(updateFn, firebaseFn);
         return newLogId;
     };
     
@@ -336,7 +279,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => deleteDoc(doc(db, 'ships', shipId, 'logs', logId));
-        await performWrite(updateFn, `logs_${shipId}`, firebaseFn);
+        await performWrite(updateFn, firebaseFn);
     };
 
     const addInventoryItem = async (itemData: Omit<InventoryItem, 'id'>) => {
@@ -351,7 +294,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => setDoc(doc(db, 'ships', shipId, 'inventory', newItemId), itemData);
-        await performWrite(updateFn, `inventory_${shipId}`, firebaseFn);
+        await performWrite(updateFn, firebaseFn);
     };
 
     const updateInventoryItem = async (itemId: string, updates: Partial<InventoryItem>) => {
@@ -363,7 +306,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => updateDoc(doc(db, 'ships', shipId, 'inventory', itemId), updates);
-        await performWrite(updateFn, `inventory_${shipId}`, firebaseFn);
+        await performWrite(updateFn, firebaseFn);
     };
     
     const deleteInventoryItem = async (itemId: string) => {
@@ -375,7 +318,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => deleteDoc(doc(db, 'ships', shipId, 'inventory', itemId));
-        await performWrite(updateFn, `inventory_${shipId}`, firebaseFn);
+        await performWrite(updateFn, firebaseFn);
     };
 
     const addActivityLog = async (activityData: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
@@ -390,7 +333,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             });
         };
         const firebaseFn = () => setDoc(doc(db, 'ships', shipId, 'activityLog', newActivityId), { ...activityData, timestamp: Timestamp.fromDate(activityData.timestamp) });
-        await performWrite(updateFn, `activityLog_${shipId}`, firebaseFn);
+        await performWrite(updateFn, firebaseFn);
     };
     
     const updateLogbookSections = async (sections: LogSection[]) => {
@@ -399,7 +342,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setLocalData(`logbookSections_${shipId}`, sections);
         };
         const firebaseFn = () => setDoc(doc(db, "ships", shipId, 'config', 'logbook'), { sections });
-        await performWrite(updateFn, `logbookSections_${shipId}`, firebaseFn);
+        await performWrite(updateFn, firebaseFn);
     };
     
     const loading = settingsLoading || inventoryLoading || logsLoading || activityLogLoading || logbookLoading;
