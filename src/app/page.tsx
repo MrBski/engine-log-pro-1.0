@@ -1,12 +1,11 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Icons } from "@/components/icons";
 import { type EngineLog } from "@/lib/data";
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
+import { Bar, BarChart, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ import { useData } from "@/hooks/use-data";
 import { formatDistanceToNow } from 'date-fns';
 
 function formatDuration(seconds: number) {
+    if (isNaN(seconds)) return "00:00:00"; // Safety check
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
@@ -43,13 +43,32 @@ export default function DashboardPage() {
     updateSettings, addActivityLog, 
     loading, settingsLoading, inventoryLoading, logsLoading 
   } = useData();
+  
   const [mounted, setMounted] = useState(false);
+  // Tambahan state untuk timer supaya tidak menyebabkan hydration error
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); 
+  
   const { toast } = useToast();
   const { user } = useAuth();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Effect khusus untuk update timer real-time tanpa mengganggu render utama
+  useEffect(() => {
+    if (!settings || settings.generatorStatus !== 'on' || !settings.generatorStartTime) {
+        setElapsedSeconds((settings?.generatorRunningHours || 0) * 3600);
+        return;
+    }
+
+    const interval = setInterval(() => {
+        const elapsed = (Date.now() - settings.generatorStartTime!) / 1000;
+        setElapsedSeconds(((settings.generatorRunningHours || 0) * 3600) + elapsed);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [settings]);
 
   const handleGeneratorToggle = async () => {
     if (!settings || !user || !user.name) return;
@@ -115,9 +134,12 @@ export default function DashboardPage() {
      }
   };
 
-  const lowStockItems = inventory.filter(item => item.stock <= item.lowStockThreshold);
+  // --- PERBAIKAN: DEFENSIVE PROGRAMMING ---
+  // Menambahkan (inventory || []) agar jika undefined tidak crash
+  const lowStockItems = (inventory || []).filter(item => item.stock <= item.lowStockThreshold);
   
-  const sortedLogs = [...logs].sort((a, b) => {
+  // Menambahkan (logs || []) agar jika undefined tidak crash
+  const sortedLogs = [...(logs || [])].sort((a, b) => {
     const dateA = safeToDate(a.timestamp);
     const dateB = safeToDate(b.timestamp);
     if (!dateA || !dateB) return 0;
@@ -128,6 +150,7 @@ export default function DashboardPage() {
   const recentLogs = sortedLogs.slice(0, 5);
 
   const getReading = (log: EngineLog, key: string) => {
+    if (!log.readings) return 'N/A'; // Safety check
     const reading = log.readings.find(r => r.key.toLowerCase().includes(key.toLowerCase()));
     return reading ? `${reading.value} ${reading.unit}` : 'N/A';
   }
@@ -145,26 +168,33 @@ export default function DashboardPage() {
     rpm: { label: "RPM", color: "hsl(var(--chart-1))" },
     fuel: { label: "Fuel (L/hr)", color: "hsl(var(--chart-2))" }
   };
-
-  const getTotalElapsedSeconds = () => {
-    if (!settings) return 0;
-    if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
-      const elapsed = (Date.now() - settings.generatorStartTime) / 1000;
-      return (settings.generatorRunningHours || 0) * 3600 + elapsed;
-    }
-    return (settings.generatorRunningHours || 0) * 3600;
-  };
   
   const lastResetDate = settings?.generatorLastReset ? safeToDate(settings.generatorLastReset) : null;
 
-
+  // Render Loading State
   if (!mounted || loading || settingsLoading || inventoryLoading || logsLoading) {
     return (
       <>
         <AppHeader />
-        <div className="text-center">Loading dashboard data...</div>
+        <div className="flex h-[50vh] items-center justify-center">
+            <p className="text-muted-foreground">Loading dashboard data...</p>
+        </div>
       </>
     );
+  }
+
+  // --- PERBAIKAN: Settings Null Check ---
+  // Jika loading selesai tapi settings masih kosong (misal DB error atau user baru)
+  if (!settings) {
+      return (
+        <div className="flex flex-col gap-6">
+            <AppHeader />
+            <div className="p-4 text-center">
+                <h3 className="text-lg font-bold">Data tidak ditemukan</h3>
+                <p>Silakan cek koneksi internet atau hubungi admin.</p>
+            </div>
+        </div>
+      )
   }
 
   return (
@@ -186,7 +216,8 @@ export default function DashboardPage() {
                 <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
-                   <p className="text-xl font-bold">{formatDuration(getTotalElapsedSeconds())}</p>
+                   {/* Menggunakan state elapsedSeconds yang aman */}
+                   <p className="text-xl font-bold">{formatDuration(elapsedSeconds)}</p>
                    {lastResetDate && (
                        <p className="text-xs text-muted-foreground mt-1">
                            Reset {formatDistanceToNow(lastResetDate, { addSuffix: true })}
