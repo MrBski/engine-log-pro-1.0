@@ -14,10 +14,10 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import { formatDistanceToNow } from 'date-fns';
 
+// Helper format durasi
 function formatDuration(seconds: number) {
-    if (isNaN(seconds)) return "00:00:00"; // Safety check
+    if (isNaN(seconds)) return "00:00:00";
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
@@ -45,8 +45,10 @@ export default function DashboardPage() {
   } = useData();
   
   const [mounted, setMounted] = useState(false);
-  // Tambahan state untuk timer supaya tidak menyebabkan hydration error
-  const [elapsedSeconds, setElapsedSeconds] = useState(0); 
+  
+  // State untuk timer real-time
+  const [genElapsed, setGenElapsed] = useState(0); 
+  const [meElapsed, setMeElapsed] = useState(0);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -55,25 +57,45 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
 
-  // Effect khusus untuk update timer real-time tanpa mengganggu render utama
+  // --- LOGIC TIMER (Generator & ME) ---
   useEffect(() => {
-    if (!settings || settings.generatorStatus !== 'on' || !settings.generatorStartTime) {
-        setElapsedSeconds((settings?.generatorRunningHours || 0) * 3600);
-        return;
-    }
+    if (!settings) return;
 
+    // Fungsi hitung awal
+    const calculateSeconds = (totalHours: number, startTime: number | null | undefined, status: string | undefined) => {
+        if (status === 'on' && startTime) {
+            const elapsed = (Date.now() - startTime) / 1000;
+            return (totalHours * 3600) + elapsed;
+        }
+        return totalHours * 3600;
+    };
+
+    // Set nilai awal
+    setGenElapsed(calculateSeconds(settings.generatorRunningHours || 0, settings.generatorStartTime, settings.generatorStatus));
+    setMeElapsed(calculateSeconds(settings.runningHours || 0, settings.mainEngineStartTime, settings.mainEngineStatus)); // Asumsi field baru: mainEngineStartTime
+
+    // Interval update setiap detik
     const interval = setInterval(() => {
-        const elapsed = (Date.now() - settings.generatorStartTime!) / 1000;
-        setElapsedSeconds(((settings.generatorRunningHours || 0) * 3600) + elapsed);
+        if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
+            const elapsed = (Date.now() - settings.generatorStartTime) / 1000;
+            setGenElapsed(((settings.generatorRunningHours || 0) * 3600) + elapsed);
+        }
+        
+        // Cek status ME (Asumsi field settings.mainEngineStatus ada)
+        if (settings.mainEngineStatus === 'on' && settings.mainEngineStartTime) {
+            const elapsed = (Date.now() - settings.mainEngineStartTime) / 1000;
+            setMeElapsed(((settings.runningHours || 0) * 3600) + elapsed);
+        }
     }, 1000);
 
     return () => clearInterval(interval);
   }, [settings]);
 
+
+  // --- HANDLER GENERATOR ---
   const handleGeneratorToggle = async () => {
     if (!settings || !user || !user.name) return;
     if (settings.generatorStatus === 'on') {
-      // Turning OFF
       const endTime = Date.now();
       const startTime = settings.generatorStartTime || endTime;
       const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
@@ -83,78 +105,78 @@ export default function DashboardPage() {
             generatorStartTime: null,
             generatorRunningHours: (settings.generatorRunningHours || 0) + elapsedHours,
         });
-        await addActivityLog({
-            type: 'generator',
-            timestamp: new Date(),
-            notes: 'Generator turned OFF',
-            officer: user.name,
-        });
-        toast({ title: "Generator Off", description: "Running hours have been updated." });
-      } catch (error) {
-         toast({ variant: "destructive", title: "Error", description: "Failed to turn off generator." });
-      }
+        await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator turned OFF', officer: user.name });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed update." }); }
     } else {
-      // Turning ON
       try {
-        await updateSettings({
-            generatorStatus: 'on',
-            generatorStartTime: Date.now(),
-        });
-        await addActivityLog({
-            type: 'generator',
-            timestamp: new Date(),
-            notes: 'Generator turned ON',
-            officer: user.name,
-        });
-        toast({ title: "Generator On", description: "Running hours tracking started." });
-      } catch (error) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to turn on generator." });
-      }
+        await updateSettings({ generatorStatus: 'on', generatorStartTime: Date.now() });
+        await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator turned ON', officer: user.name });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed update." }); }
     }
   };
 
   const handleGeneratorReset = async () => {
      if (!settings || !user || !user.name) return;
      try {
-        const now = new Date();
         await updateSettings({
             generatorRunningHours: 0,
             generatorStartTime: settings.generatorStatus === 'on' ? Date.now() : null,
-            generatorLastReset: now,
         });
-        await addActivityLog({
-            type: 'generator',
-            timestamp: now,
-            notes: 'Generator RHS Reset',
-            officer: user.name,
-        });
-        toast({ title: "Generator RHS Reset", description: "Running hours have been reset to 0." });
-     } catch (error) {
-        toast({ variant: "destructive", title: "Error", description: "Failed to reset generator RHS." });
-     }
+        await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator RHS Reset', officer: user.name });
+        toast({ title: "Reset", description: "Generator hours reset." });
+     } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed reset." }); }
   };
 
-  // --- PERBAIKAN: DEFENSIVE PROGRAMMING ---
-  // Menambahkan (inventory || []) agar jika undefined tidak crash
+  // --- HANDLER MAIN ENGINE (Baru) ---
+  const handleMEToggle = async () => {
+    if (!settings || !user || !user.name) return;
+    
+    // Asumsi field baru di settings: mainEngineStatus, mainEngineStartTime, runningHours(sudah ada)
+    const isMeOn = settings.mainEngineStatus === 'on';
+
+    if (isMeOn) {
+      // Turn OFF ME
+      const endTime = Date.now();
+      const startTime = settings.mainEngineStartTime || endTime;
+      const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
+      try {
+        await updateSettings({
+            mainEngineStatus: 'off',
+            mainEngineStartTime: null,
+            runningHours: (settings.runningHours || 0) + elapsedHours,
+        });
+        await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'M.E. Stopped (FWE)', officer: user.name });
+        toast({ title: "M.E. Stopped", description: "Running hours updated." });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to stop M.E." }); }
+    } else {
+      // Turn ON ME
+      try {
+        await updateSettings({
+            mainEngineStatus: 'on',
+            mainEngineStartTime: Date.now(),
+        });
+        await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'M.E. Started (SBE)', officer: user.name });
+        toast({ title: "M.E. Started", description: "Tracking started." });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to start M.E." }); }
+    }
+  };
+
+
+  // --- DATA VISUALIZATION ---
   const lowStockItems = (inventory || []).filter(item => item.stock <= item.lowStockThreshold);
-  
-  // Menambahkan (logs || []) agar jika undefined tidak crash
   const sortedLogs = [...(logs || [])].sort((a, b) => {
     const dateA = safeToDate(a.timestamp);
     const dateB = safeToDate(b.timestamp);
     if (!dateA || !dateB) return 0;
     return dateB.getTime() - dateA.getTime();
   });
-
   const latestLog = sortedLogs.length > 0 ? sortedLogs[0] : null;
   const recentLogs = sortedLogs.slice(0, 5);
-
   const getReading = (log: EngineLog, key: string) => {
-    if (!log.readings) return 'N/A'; // Safety check
+    if (!log.readings) return 'N/A';
     const reading = log.readings.find(r => r.key.toLowerCase().includes(key.toLowerCase()));
     return reading ? `${reading.value} ${reading.unit}` : 'N/A';
   }
-
   const chartData = sortedLogs.slice(0, 7).reverse().map(log => {
     const logDate = safeToDate(log.timestamp);
     return {
@@ -163,16 +185,12 @@ export default function DashboardPage() {
         fuel: parseFloat(log.readings.find(r => r.key.includes('Fuel'))?.value || '0'),
     }
   });
-
   const chartConfig = {
     rpm: { label: "RPM", color: "hsl(var(--chart-1))" },
     fuel: { label: "Fuel (L/hr)", color: "hsl(var(--chart-2))" }
   };
-  
-  const lastResetDate = settings?.generatorLastReset ? safeToDate(settings.generatorLastReset) : null;
 
-  // Render Loading State
-  if (!mounted || loading || settingsLoading || inventoryLoading || logsLoading) {
+  if (!mounted || loading || settingsLoading) {
     return (
       <>
         <AppHeader />
@@ -183,46 +201,50 @@ export default function DashboardPage() {
     );
   }
 
-  // --- PERBAIKAN: Settings Null Check ---
-  // Jika loading selesai tapi settings masih kosong (misal DB error atau user baru)
-  if (!settings) {
-      return (
-        <div className="flex flex-col gap-6">
-            <AppHeader />
-            <div className="p-4 text-center">
-                <h3 className="text-lg font-bold">Data tidak ditemukan</h3>
-                <p>Silakan cek koneksi internet atau hubungi admin.</p>
-            </div>
-        </div>
-      )
-  }
+  if (!settings) return <div>Data Error</div>;
+
+  // CSS Class untuk efek Ambient Hijau
+  const activeCardClass = "border-green-500 ring-1 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all duration-300";
 
   return (
     <div className="flex flex-col gap-6">
       <AppHeader />
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="flex flex-col p-4 justify-between">
-          <div className="flex items-center">
-            <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
-              <p className="text-xl font-bold">{(settings?.runningHours || 0).toLocaleString()} hrs</p>
-            </div>
+        
+        {/* --- MAIN ENGINE CARD --- */}
+        <Card className={cn("flex flex-col p-4 justify-between transition-all", settings.mainEngineStatus === 'on' ? activeCardClass : "")}>
+          <div className="flex-1">
+              <div className="flex items-start">
+                <Icons.clock className={cn("h-6 w-6 mr-4", settings.mainEngineStatus === 'on' ? "text-green-500 animate-pulse" : "text-muted-foreground")} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
+                  <p className="text-xl font-bold">{formatDuration(meElapsed)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                      Status: {settings.mainEngineStatus === 'on' ? <span className="text-green-500 font-bold">RUNNING</span> : "STOPPED"}
+                  </p>
+                </div>
+              </div>
           </div>
+          <div className="flex justify-end gap-2 mt-2">
+                 <Button 
+                    size="icon" 
+                    className={cn("h-8 w-8", settings.mainEngineStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
+                    onClick={handleMEToggle}
+                    disabled={!user}
+                >
+                    {settings.mainEngineStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
+                </Button>
+            </div>
         </Card>
-        <Card className="flex flex-col p-4 justify-between">
+
+        {/* --- GENERATOR CARD --- */}
+        <Card className={cn("flex flex-col p-4 justify-between transition-all", settings.generatorStatus === 'on' ? activeCardClass : "")}>
             <div className="flex-1">
               <div className="flex items-start">
-                <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
+                <Icons.clock className={cn("h-6 w-6 mr-4", settings.generatorStatus === 'on' ? "text-green-500 animate-pulse" : "text-muted-foreground")} />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
-                   {/* Menggunakan state elapsedSeconds yang aman */}
-                   <p className="text-xl font-bold">{formatDuration(elapsedSeconds)}</p>
-                   {lastResetDate && (
-                       <p className="text-xs text-muted-foreground mt-1">
-                           Reset {formatDistanceToNow(lastResetDate, { addSuffix: true })}
-                       </p>
-                   )}
+                   <p className="text-xl font-bold">{formatDuration(genElapsed)}</p>
                 </div>
               </div>
             </div>
@@ -232,7 +254,7 @@ export default function DashboardPage() {
                         <Button variant="destructive" size="icon" className="h-8 w-8" disabled={!user}><Icons.reset /></Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
-                        <AlertDialogHeader><AlertDialogTitle>Reset Generator RHS?</AlertDialogTitle><AlertDialogDescription>This will reset the running hours to 0. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogHeader><AlertDialogTitle>Reset Generator RHS?</AlertDialogTitle><AlertDialogDescription>This will reset to 0.</AlertDialogDescription></AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction onClick={handleGeneratorReset}>Reset</AlertDialogAction>
@@ -249,6 +271,8 @@ export default function DashboardPage() {
                 </Button>
             </div>
         </Card>
+
+        {/* --- FUEL CARD --- */}
         <Card className="flex items-center p-4">
           <Icons.fuel className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
@@ -256,6 +280,8 @@ export default function DashboardPage() {
             <p className="text-xl font-bold">{latestLog ? getReading(latestLog, 'USED 4 Hours') : 'N/A'}</p>
           </div>
         </Card>
+
+        {/* --- ALERTS CARD --- */}
         <Card className="flex items-center p-4">
           <Icons.alert className="h-6 w-6 text-destructive mr-4" />
           <div className="flex-1">
@@ -266,6 +292,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* ... (BAGIAN TABLE DAN CHART TIDAK BERUBAH, SAMA SEPERTI SEBELUMNYA) ... */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Recent Logs</CardTitle>
