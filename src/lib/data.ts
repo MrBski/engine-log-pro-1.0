@@ -39,23 +39,22 @@ export type InventoryItem = {
   lowStockThreshold: number;
 };
 
-// --- UPDATE 1: Menambahkan tipe 'main_engine' ke ActivityLog ---
+// Pastikan type 'main_engine' ada di sini
 export type ActivityLog = 
   | { type: 'engine', logId: string, officer: string, id: string; timestamp: Date | Timestamp, name: string, category: InventoryCategory }
   | { type: 'inventory'; notes: string; name: string; officer: string; category: InventoryCategory; id: string; timestamp: Date | Timestamp }
   | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }
-  | { type: 'main_engine'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }; // Baru!
+  | { type: 'main_engine'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }; 
 
 
-// --- UPDATE 2: Menambahkan status Main Engine ke AppSettings ---
 export type AppSettings = {
   shipName: string;
   officers: string[];
-  runningHours: number; // M.E. total accumulated hours
+  runningHours: number; 
   
-  // Field Baru untuk Main Engine Status
   mainEngineStatus: 'on' | 'off'; 
   mainEngineStartTime: number | null; 
+  mainEngineLastStopped: Date | Timestamp | null; // <-- FIELD BARU (Last FWE)
 
   generatorRunningHours: number;
   generatorStatus: 'on' | 'off';
@@ -77,9 +76,9 @@ export const getInitialData = (): AppData => ({
     officers: ['Chief Engineer', '2nd Engineer', 'Oiler'],
     runningHours: 0,
     
-    // --- UPDATE 3: Inisialisasi Default Value ---
     mainEngineStatus: 'off',
     mainEngineStartTime: null,
+    mainEngineLastStopped: null, // <-- Default Value
 
     generatorRunningHours: 0,
     generatorStatus: 'off' as 'on' | 'off',
