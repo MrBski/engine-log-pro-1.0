@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 
 export type Reading = {
@@ -40,16 +39,24 @@ export type InventoryItem = {
   lowStockThreshold: number;
 };
 
+// --- UPDATE 1: Menambahkan tipe 'main_engine' ke ActivityLog ---
 export type ActivityLog = 
   | { type: 'engine', logId: string, officer: string, id: string; timestamp: Date | Timestamp, name: string, category: InventoryCategory }
   | { type: 'inventory'; notes: string; name: string; officer: string; category: InventoryCategory; id: string; timestamp: Date | Timestamp }
-  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp };
+  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }
+  | { type: 'main_engine'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }; // Baru!
 
 
+// --- UPDATE 2: Menambahkan status Main Engine ke AppSettings ---
 export type AppSettings = {
   shipName: string;
   officers: string[];
-  runningHours: number;
+  runningHours: number; // M.E. total accumulated hours
+  
+  // Field Baru untuk Main Engine Status
+  mainEngineStatus: 'on' | 'off'; 
+  mainEngineStartTime: number | null; 
+
   generatorRunningHours: number;
   generatorStatus: 'on' | 'off';
   generatorStartTime: number | null;
@@ -69,6 +76,11 @@ export const getInitialData = (): AppData => ({
     shipName: 'Engine log pro',
     officers: ['Chief Engineer', '2nd Engineer', 'Oiler'],
     runningHours: 0,
+    
+    // --- UPDATE 3: Inisialisasi Default Value ---
+    mainEngineStatus: 'off',
+    mainEngineStartTime: null,
+
     generatorRunningHours: 0,
     generatorStatus: 'off' as 'on' | 'off',
     generatorStartTime: null,
