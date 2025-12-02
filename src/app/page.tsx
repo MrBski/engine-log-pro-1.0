@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
+import { formatDistanceToNow } from 'date-fns';
 
 function formatDuration(seconds: number) {
     if (isNaN(seconds)) return "00:00:00";
@@ -26,15 +27,14 @@ function formatDuration(seconds: number) {
 const safeToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
-    if (typeof timestamp.toDate === 'function') return timestamp.toDate();
+    if (typeof timestamp.toDate === 'function') {
+        return timestamp.toDate();
+    }
     const date = new Date(timestamp);
-    if (!isNaN(date.getTime())) return date;
+    if (!isNaN(date.getTime())) {
+        return date;
+    }
     return null;
-};
-
-const formatShortDate = (date: Date | null) => {
-    if (!date) return "-";
-    return date.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
 export default function DashboardPage() {
@@ -46,7 +46,6 @@ export default function DashboardPage() {
   
   const [mounted, setMounted] = useState(false);
   const [genElapsed, setGenElapsed] = useState(0); 
-  const [meElapsed, setMeElapsed] = useState(0);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -55,58 +54,38 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
 
-  // --- SAFEGUARD VARIABLES (PENTING!) ---
-  // Pastikan variabel ini punya nilai default, jangan biarkan undefined masuk ke logic timer
-  const meStatus = settings?.mainEngineStatus || 'off';
-  const genStatus = settings?.generatorStatus || 'off';
-  const meStartTime = settings?.mainEngineStartTime;
-  const genStartTime = settings?.generatorStartTime;
-  const meLastStopped = settings?.mainEngineLastStopped ? safeToDate(settings.mainEngineLastStopped) : null;
-  const meRunningHours = settings?.runningHours || 0;
-  const genRunningHours = settings?.generatorRunningHours || 0;
-
-  // --- TIMER LOGIC ---
+  // Timer hanya untuk Generator (Fitur lama yang sudah stabil)
   useEffect(() => {
     if (!settings) return;
 
-    const calculateSeconds = (totalHours: number, startTime: number | null | undefined, status: string | undefined) => {
-        if (status === 'on' && startTime) {
-            const elapsed = (Date.now() - startTime) / 1000;
-            return (totalHours * 3600) + elapsed;
-        }
-        return totalHours * 3600;
-    };
-
-    setGenElapsed(calculateSeconds(genRunningHours, genStartTime, genStatus));
-    setMeElapsed(calculateSeconds(meRunningHours, meStartTime, meStatus)); 
+    if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
+        setGenElapsed(((settings.generatorRunningHours || 0) * 3600) + (Date.now() - settings.generatorStartTime) / 1000);
+    } else {
+        setGenElapsed((settings.generatorRunningHours || 0) * 3600);
+    }
 
     const interval = setInterval(() => {
-        if (genStatus === 'on' && genStartTime) {
-            const elapsed = (Date.now() - genStartTime) / 1000;
-            setGenElapsed((genRunningHours * 3600) + elapsed);
-        }
-        if (meStatus === 'on' && meStartTime) {
-            const elapsed = (Date.now() - meStartTime) / 1000;
-            setMeElapsed((meRunningHours * 3600) + elapsed);
+        if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
+            const elapsed = (Date.now() - settings.generatorStartTime) / 1000;
+            setGenElapsed(((settings.generatorRunningHours || 0) * 3600) + elapsed);
         }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [settings, genRunningHours, genStartTime, genStatus, meRunningHours, meStartTime, meStatus]);
+  }, [settings]);
 
 
-  // --- HANDLER: GENERATOR ---
   const handleGeneratorToggle = async () => {
     if (!settings || !user || !user.name) return;
-    if (genStatus === 'on') {
+    if (settings.generatorStatus === 'on') {
       const endTime = Date.now();
-      const startTime = genStartTime || endTime;
+      const startTime = settings.generatorStartTime || endTime;
       const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
       try {
         await updateSettings({
             generatorStatus: 'off',
             generatorStartTime: null,
-            generatorRunningHours: genRunningHours + elapsedHours,
+            generatorRunningHours: (settings.generatorRunningHours || 0) + elapsedHours,
         });
         await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator turned OFF', officer: user.name });
       } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed update." }); }
@@ -123,44 +102,14 @@ export default function DashboardPage() {
      try {
         await updateSettings({
             generatorRunningHours: 0,
-            generatorStartTime: genStatus === 'on' ? Date.now() : null,
+            generatorStartTime: settings.generatorStatus === 'on' ? Date.now() : null,
+            generatorLastReset: new Date(),
         });
         await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator RHS Reset', officer: user.name });
         toast({ title: "Reset", description: "Generator hours reset." });
      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed reset." }); }
   };
 
-  // --- HANDLER: MAIN ENGINE ---
-  const handleMEToggle = async () => {
-    if (!settings || !user || !user.name) return;
-
-    if (meStatus === 'on') {
-      const endTime = Date.now();
-      const startTime = meStartTime || endTime;
-      const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
-      try {
-        await updateSettings({
-            mainEngineStatus: 'off',
-            mainEngineStartTime: null,
-            mainEngineLastStopped: new Date(), 
-            runningHours: meRunningHours + elapsedHours,
-        });
-        await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'M.E. Stopped (FWE)', officer: user.name });
-        toast({ title: "M.E. Stopped", description: "Recorded as FWE." });
-      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to stop M.E." }); }
-    } else {
-      try {
-        await updateSettings({
-            mainEngineStatus: 'on',
-            mainEngineStartTime: Date.now(),
-        });
-        await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'M.E. Started (SBE)', officer: user.name });
-        toast({ title: "M.E. Started", description: "Tracking started (SBE)." });
-      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to start M.E." }); }
-    }
-  };
-
-  // --- DATA PREP ---
   const lowStockItems = (inventory || []).filter(item => item.stock <= item.lowStockThreshold);
   const sortedLogs = [...(logs || [])].sort((a, b) => {
     const dateA = safeToDate(a.timestamp);
@@ -190,6 +139,8 @@ export default function DashboardPage() {
     rpm: { label: "RPM", color: "hsl(var(--chart-1))" },
     fuel: { label: "Fuel (L/hr)", color: "hsl(var(--chart-2))" }
   };
+  
+  const lastResetDate = settings?.generatorLastReset ? safeToDate(settings.generatorLastReset) : null;
 
   if (!mounted || loading || settingsLoading) {
     return (
@@ -202,85 +153,52 @@ export default function DashboardPage() {
     );
   }
 
-  // --- FALLBACK JIKA SETTINGS RUSAK ---
+  // Fallback sederhana
   if (!settings) {
       return (
-        <>
-            <AppHeader />
-            <div className="flex h-[50vh] items-center justify-center flex-col gap-4">
-                <p className="text-muted-foreground">Initializing data...</p>
-                <Button onClick={() => window.location.reload()}>Reload Page</Button>
-            </div>
-        </>
+        <div className="flex flex-col gap-6 p-4">
+             <AppHeader />
+             <div>Loading or No Data...</div>
+        </div>
       )
   }
-
-  // --- VISUAL STYLING ---
-  const genCardClass = genStatus === 'on' 
-    ? "border-green-500 shadow-[0_0_20px_rgba(59,130,246,0.6)] bg-slate-950/60 transition-all duration-500" 
-    : "border-red-900/50 shadow-[0_0_15px_rgba(59,130,246,0.15)] bg-slate-950/30 transition-all duration-500"; 
-
-  const meCardClass = meStatus === 'on'
-    ? "border-green-500 shadow-[0_0_20px_rgba(234,179,8,0.6)] bg-slate-950/60 transition-all duration-500"
-    : "border-red-900/50 shadow-[0_0_15px_rgba(234,179,8,0.15)] bg-slate-950/30 transition-all duration-500";
-
 
   return (
     <div className="flex flex-col gap-6">
       <AppHeader />
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         
-        {/* --- MAIN ENGINE CARD --- */}
-        <Card className={cn("flex flex-col p-4 justify-between", meCardClass)}>
-          <div className="flex-1">
-              <div className="flex items-start">
-                <Icons.anchor className={cn("h-6 w-6 mr-4 transition-colors", meStatus === 'on' ? "text-yellow-400 animate-pulse" : "text-muted-foreground")} />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
-                  <p className="text-xl font-bold">{formatDuration(meElapsed)}</p>
-                  
-                  <p className="text-xs text-muted-foreground mt-1">
-                      {meStatus === 'on' 
-                        ? <span className="text-green-400 font-medium">Started: {formatShortDate(safeToDate(meStartTime))}</span>
-                        : <span className="text-red-400 font-medium">Stopped: {formatShortDate(meLastStopped)}</span>
-                      }
-                  </p>
-                </div>
-              </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-2">
-                 <Button 
-                    size="icon" 
-                    className={cn("h-8 w-8 transition-colors", meStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700")}
-                    onClick={handleMEToggle}
-                    disabled={!user}
-                >
-                    {meStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
-                </Button>
+        {/* --- MAIN ENGINE CARD (VERSI SIMPEL) --- */}
+        <Card className="flex flex-col p-4 justify-between">
+          <div className="flex items-center">
+            <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
+              <p className="text-xl font-bold">{(settings.runningHours || 0).toLocaleString()} hrs</p>
             </div>
+          </div>
         </Card>
 
-        {/* --- GENERATOR CARD --- */}
-        <Card className={cn("flex flex-col p-4 justify-between", genCardClass)}>
+        {/* --- GENERATOR CARD (VERSI STABIL) --- */}
+        <Card className="flex flex-col p-4 justify-between">
             <div className="flex-1">
               <div className="flex items-start">
-                <Icons.zap className={cn("h-6 w-6 mr-4 transition-colors", genStatus === 'on' ? "text-blue-400 animate-pulse" : "text-muted-foreground")} />
+                <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
                    <p className="text-xl font-bold">{formatDuration(genElapsed)}</p>
-                   <p className="text-xs text-muted-foreground mt-1">
-                      {genStatus === 'on' 
-                        ? <span className="text-green-400 font-medium">On Duty</span>
-                        : <span className="text-muted-foreground">Standby</span>
-                      }
-                  </p>
+                   {lastResetDate && (
+                       <p className="text-xs text-muted-foreground mt-1">
+                           Reset {formatDistanceToNow(lastResetDate, { addSuffix: true })}
+                       </p>
+                   )}
                 </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-2">
                  <AlertDialog>
                     <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white" disabled={!user}><Icons.reset /></Button>
+                        <Button variant="destructive" size="icon" className="h-8 w-8" disabled={!user}><Icons.reset /></Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                         <AlertDialogHeader><AlertDialogTitle>Reset Generator RHS?</AlertDialogTitle><AlertDialogDescription>This will reset to 0.</AlertDialogDescription></AlertDialogHeader>
@@ -292,16 +210,15 @@ export default function DashboardPage() {
                 </AlertDialog>
                 <Button 
                     size="icon" 
-                    className={cn("h-8 w-8 transition-colors", genStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700")}
+                    className={cn("h-8 w-8", settings?.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
                     onClick={handleGeneratorToggle}
                     disabled={!user}
                 >
-                    {genStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
+                    {settings?.generatorStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
                 </Button>
             </div>
         </Card>
 
-        {/* --- FUEL CARD --- */}
         <Card className="flex items-center p-4">
           <Icons.fuel className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
@@ -310,7 +227,6 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* --- ALERTS CARD --- */}
         <Card className="flex items-center p-4">
           <Icons.alert className="h-6 w-6 text-destructive mr-4" />
           <div className="flex-1">
