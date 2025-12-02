@@ -1,3 +1,4 @@
+// Salin dan tempel (copy and paste) kode ini ke DashboardPage.tsx Anda
 "use client";
 
 import { useEffect, useState } from "react";
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   
   const [mounted, setMounted] = useState(false);
   const [genElapsed, setGenElapsed] = useState(0); 
+  const [meElapsed, setMeElapsed] = useState(0); // STATE BARU UNTUK M.E
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -54,7 +56,7 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
 
-  // Timer hanya untuk Generator (Fitur lama yang sudah stabil)
+  // Timer Generator
   useEffect(() => {
     if (!settings) return;
 
@@ -74,7 +76,28 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [settings]);
 
+  // --- TIMER BARU UNTUK MAIN ENGINE (M.E) ---
+  useEffect(() => {
+    if (!settings) return;
 
+    if (settings.mainEngineStatus === 'on' && settings.mainEngineStartTime) {
+        setMeElapsed(((settings.mainEngineRunningHours || 0) * 3600) + (Date.now() - settings.mainEngineStartTime) / 1000);
+    } else {
+        setMeElapsed((settings.mainEngineRunningHours || 0) * 3600);
+    }
+
+    const interval = setInterval(() => {
+        if (settings.mainEngineStatus === 'on' && settings.mainEngineStartTime) {
+            const elapsed = (Date.now() - settings.mainEngineStartTime) / 1000;
+            setMeElapsed(((settings.mainEngineRunningHours || 0) * 3600) + elapsed);
+        }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [settings]);
+
+
+  // --- LOGIC TOGGLE GENERATOR (EXISTING) ---
   const handleGeneratorToggle = async () => {
     if (!settings || !user || !user.name) return;
     if (settings.generatorStatus === 'on') {
@@ -109,13 +132,54 @@ export default function DashboardPage() {
         toast({ title: "Reset", description: "Generator hours reset." });
      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed reset." }); }
   };
+  
+  // --- LOGIC TOGGLE MAIN ENGINE (M.E) ---
+  const handleMainEngineToggle = async () => {
+    if (!settings || !user || !user.name) return;
+    if (settings.mainEngineStatus === 'on') {
+      // M.E DARI ON MENJADI OFF
+      const endTime = Date.now();
+      const startTime = settings.mainEngineStartTime || endTime;
+      const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
+      try {
+        await updateSettings({
+            mainEngineStatus: 'off',
+            mainEngineStartTime: null,
+            // Tambahkan jam berjalan ke total M.E Running Hours di timer
+            mainEngineRunningHours: (settings.mainEngineRunningHours || 0) + elapsedHours,
+        });
+        await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'Main Engine turned OFF', officer: user.name });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to turn M.E OFF." }); }
+    } else {
+      // M.E DARI OFF MENJADI ON
+      try {
+        await updateSettings({ 
+            mainEngineStatus: 'on', 
+            mainEngineStartTime: Date.now() 
+        });
+        await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'Main Engine turned ON', officer: user.name });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to turn M.E ON." }); }
+    }
+  };
+
+  const handleMainEngineReset = async () => {
+     if (!settings || !user || !user.name) return;
+     try {
+        await updateSettings({
+            mainEngineRunningHours: 0,
+            // Reset jam yang dicatat dari log 4 jam juga? (runningHours)
+            // runningHours: 0, // Opsional, tergantung kebijakan Anda
+            mainEngineStartTime: settings.mainEngineStatus === 'on' ? Date.now() : null,
+            mainEngineLastReset: new Date(),
+        });
+        await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'Main Engine RHS Reset', officer: user.name });
+        toast({ title: "Reset", description: "Main Engine hours reset." });
+     } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed reset." }); }
+  };
 
   const lowStockItems = (inventory || []).filter(item => item.stock <= item.lowStockThreshold);
-  
-  // *** Perubahan di sini: logs sudah di-fetch dan diurutkan oleh use-data.ts ***
-  // Kita tidak perlu mengurutkan lagi. logs hanya berisi 50 data terbaru.
-  const latestLog = (logs && logs.length > 0) ? logs[0] : null; // Ambil yang paling atas (terbaru)
-  const recentLogs = (logs || []).slice(0, 5); // Hanya ambil 5 log teratas untuk ditampilkan di dashboard
+  const recentLogs = (logs || []).slice(0, 5);
+  const latestLog = (logs && logs.length > 0) ? logs[0] : null; 
   
   const getReading = (log: EngineLog, key: string) => {
     if (!log.readings) return 'N/A';
@@ -123,8 +187,6 @@ export default function DashboardPage() {
     return reading ? `${reading.value} ${reading.unit}` : 'N/A';
   }
   
-  // Data chart menggunakan 7 log teratas dari 50 log yang tersedia (logs)
-  // Perlu di-reverse agar chart menampilkan data tertua di kiri (seperti linimasa)
   const chartData = (logs || []).slice(0, 7).reverse().map(log => {
     const logDate = safeToDate(log.timestamp);
     return {
@@ -139,7 +201,8 @@ export default function DashboardPage() {
     fuel: { label: "Fuel (L/hr)", color: "hsl(var(--chart-2))" }
   };
   
-  const lastResetDate = settings?.generatorLastReset ? safeToDate(settings.generatorLastReset) : null;
+  const lastResetDateGen = settings?.generatorLastReset ? safeToDate(settings.generatorLastReset) : null;
+  const lastResetDateME = settings?.mainEngineLastReset ? safeToDate(settings.mainEngineLastReset) : null;
 
   if (!mounted || loading || settingsLoading) {
     return (
@@ -167,18 +230,48 @@ export default function DashboardPage() {
       <AppHeader />
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         
-        {/* --- MAIN ENGINE CARD (VERSI SIMPEL) --- */}
+        {/* --- MAIN ENGINE CARD (BARU) --- */}
         <Card className="flex flex-col p-4 justify-between">
-          <div className="flex items-center">
-            <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
-              <p className="text-xl font-bold">{(settings.runningHours || 0).toLocaleString()} hrs</p>
+          <div className="flex-1">
+            <div className="flex items-start">
+              <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
+                {/* Menampilkan jam dari timer M.E */}
+                 <p className="text-xl font-bold">{formatDuration(meElapsed)}</p>
+                 {lastResetDateME && (
+                     <p className="text-xs text-muted-foreground mt-1">
+                         Reset {formatDistanceToNow(lastResetDateME, { addSuffix: true })}
+                     </p>
+                 )}
+              </div>
             </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+               <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="icon" className="h-8 w-8" disabled={!user}><Icons.reset /></Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                      <AlertDialogHeader><AlertDialogTitle>Reset Main Engine RHS?</AlertDialogTitle><AlertDialogDescription>This will reset to 0.</AlertDialogDescription></AlertDialogHeader>
+                      <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleMainEngineReset}>Reset</AlertDialogAction>
+                      </AlertDialogFooter>
+                  </AlertDialogContent>
+              </AlertDialog>
+              <Button 
+                  size="icon" 
+                  className={cn("h-8 w-8", settings?.mainEngineStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
+                  onClick={handleMainEngineToggle}
+                  disabled={!user}
+              >
+                  {settings?.mainEngineStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
+              </Button>
           </div>
         </Card>
 
-        {/* --- GENERATOR CARD (VERSI STABIL) --- */}
+        {/* --- GENERATOR CARD (EXISTING) --- */}
         <Card className="flex flex-col p-4 justify-between">
             <div className="flex-1">
               <div className="flex items-start">
@@ -186,9 +279,9 @@ export default function DashboardPage() {
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
                    <p className="text-xl font-bold">{formatDuration(genElapsed)}</p>
-                   {lastResetDate && (
+                   {lastResetDateGen && (
                        <p className="text-xs text-muted-foreground mt-1">
-                           Reset {formatDistanceToNow(lastResetDate, { addSuffix: true })}
+                           Reset {formatDistanceToNow(lastResetDateGen, { addSuffix: true })}
                        </p>
                    )}
                 </div>
