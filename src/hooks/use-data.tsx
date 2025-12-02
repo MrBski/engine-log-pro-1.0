@@ -90,7 +90,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 const MAIN_COLLECTION_PREFIX = 'TB.';
 const LOG_PAGE_SIZE = 50;
 
-// --- FIX: Anti-Null Local Data Fetcher ---
+// --- Anti-Null Local Data Fetcher ---
 const getLocalData = (key: string, defaultValue: any) => {
     if (typeof window === 'undefined') return defaultValue;
     const saved = localStorage.getItem(key);
@@ -143,13 +143,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const currentShipId = user?.shipId || 'guest-user';
         const initialData = getInitialData();
         
-        // --- FIX KRUSIAL: DATA MERGING ---
-        // Menggabungkan data lama (yang mungkin field-nya kurang) dengan data baru
+        // --- DATA MERGING ---
         const savedSettings = getLocalData(`settings_${currentShipId}`, initialData.settings);
         const mergedSettings = { ...initialData.settings, ...savedSettings };
 
         setSettings(convertTimestamps(mergedSettings));
         setInventory(getLocalData(`inventory_${currentShipId}`, initialData.inventory) || []);
+        // Note: logs dan activityLog sudah di-sort oleh fungsi addLog/addActivityLog terakhir
         setLogs(convertTimestamps(getLocalData(`logs_${currentShipId}`, initialData.logs) || []));
         setActivityLog(convertTimestamps(getLocalData(`activityLog_${currentShipId}`, initialData.activityLog) || []));
         setLogbookSections(getLocalData(`logbookSections_${currentShipId}`, initialData.logbookSections));
@@ -220,15 +220,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             
             const logbookSnap = await getDoc(doc(shipDocRef, 'config', 'logbook'));
             
+            // --- FIX: Kueri log sudah menggunakan LIMIT(50) dan ORDER BY (Performa OK) ---
             const [inventorySnap, logsSnap, activityLogSnap] = await Promise.all([
                 getDocs(query(collection(shipDocRef, 'inventory'))),
                 getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'), limit(LOG_PAGE_SIZE))),
                 getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'), limit(LOG_PAGE_SIZE))),
             ]);
 
-            // --- FIX: MERGE REMOTE DATA JUGA ---
+            // --- MERGE REMOTE DATA ---
             const remoteSettingsData = settingsSnap.exists() ? settingsSnap.data() : getInitialData().settings;
-            // Gabungkan juga data dari server dengan struktur lokal terbaru
             const finalRemoteSettings = { ...getInitialData().settings, ...remoteSettingsData };
             const convertedSettings = convertTimestamps(finalRemoteSettings);
             
@@ -243,14 +243,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setInventory(remoteInventory);
             setLocalData(`inventory_${shipId}`, remoteInventory);
 
+            // LOGS
             const remoteLogs = logsSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
-            setLogs(remoteLogs);
+            setLogs(remoteLogs); // Hanya 50 log terbaru yang dimuat
             setLocalData(`logs_${shipId}`, remoteLogs);
             setLastLogDoc(logsSnap.docs[logsSnap.docs.length - 1]);
             setHasMoreLogs(logsSnap.docs.length === LOG_PAGE_SIZE);
 
+            // ACTIVITY LOGS
             const remoteActivityLog = activityLogSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
-            setActivityLog(remoteActivityLog);
+            setActivityLog(remoteActivityLog); // Hanya 50 log terbaru yang dimuat
             setLocalData(`activityLog_${shipId}`, remoteActivityLog);
             setLastActivityLogDoc(activityLogSnap.docs[activityLogSnap.docs.length - 1]);
             setHasMoreActivityLogs(activityLogSnap.docs.length === LOG_PAGE_SIZE);
@@ -274,6 +276,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const fetchMoreActivityLogs = async () => {
         if (!mainCollectionId || !shipId || !db || !lastActivityLogDoc || !hasMoreActivityLogs) return;
+        setActivityLogLoading(true);
 
         try {
             const q = query(collection(db, mainCollectionId, shipId, 'activityLog'), orderBy('timestamp', 'desc'), startAfter(lastActivityLogDoc), limit(LOG_PAGE_SIZE));
@@ -281,19 +284,26 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
             const newActivityLogs = activityLogSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
             
-            setActivityLog(prev => [...prev, ...newActivityLogs]);
-            setLocalData(`activityLog_${shipId}`, [...activityLog, ...newActivityLogs]);
+            setActivityLog(prev => {
+                const updated = [...prev, ...newActivityLogs];
+                setLocalData(`activityLog_${shipId}`, updated);
+                return updated;
+            });
+            
             setLastActivityLogDoc(activityLogSnap.docs[activityLogSnap.docs.length - 1]);
             setHasMoreActivityLogs(activityLogSnap.docs.length === LOG_PAGE_SIZE);
 
         } catch (error: any) {
             console.error("Failed to fetch more activity logs:", error);
             toast({ title: "Error", description: "Could not load more activities.", variant: "destructive" });
+        } finally {
+             setActivityLogLoading(false);
         }
     };
     
     const fetchMoreLogs = async () => {
         if (!mainCollectionId || !shipId || !db || !lastLogDoc || !hasMoreLogs) return;
+        setLogsLoading(true);
 
         try {
             const q = query(collection(db, mainCollectionId, shipId, 'logs'), orderBy('timestamp', 'desc'), startAfter(lastLogDoc), limit(LOG_PAGE_SIZE));
@@ -301,14 +311,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
             const newLogs = logsSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
             
-            setLogs(prev => [...prev, ...newLogs]);
-            setLocalData(`logs_${shipId}`, [...logs, ...newLogs]);
+            setLogs(prev => {
+                const updated = [...prev, ...newLogs];
+                setLocalData(`logs_${shipId}`, updated);
+                return updated;
+            });
             setLastLogDoc(logsSnap.docs[logsSnap.docs.length - 1]);
             setHasMoreLogs(logsSnap.docs.length === LOG_PAGE_SIZE);
 
         } catch (error: any) {
             console.error("Failed to fetch more logs:", error);
             toast({ title: "Error", description: "Could not load more logs.", variant: "destructive" });
+        } finally {
+            setLogsLoading(false);
         }
     };
 
@@ -379,7 +394,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         const updateFn = () => {
             setLogs(prev => {
-                const updated = [convertTimestamps(newLog), ...prev].sort((a, b) => new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime());
+                // *** PERUBAHAN KRITIS (PERFORMA): Log baru ditambahkan di depan (DESC order) ***
+                const updated = [convertTimestamps(newLog), ...prev];
                 setLocalData(`logs_${shipId}`, updated);
                 return updated;
             });
@@ -413,6 +429,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         const updateFn = () => {
             setInventory(prev => {
+                // Inventory tetap diurutkan berdasarkan nama (sedikit data, sorting cepat)
                 const updated = [...prev, newItem].sort((a,b) => a.name.localeCompare(b.name));
                 setLocalData(`inventory_${shipId}`, updated);
                 return updated;
@@ -460,7 +477,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
         const updateFn = () => {
             setActivityLog(prev => {
-                const updated = [convertTimestamps(newActivity), ...prev].sort((a, b) => new Date(b.timestamp as string).getTime() - new Date(a.timestamp as string).getTime());
+                // *** PERUBAHAN KRITIS (PERFORMA): Activity Log baru ditambahkan di depan ***
+                const updated = [convertTimestamps(newActivity), ...prev];
                 setLocalData(`activityLog_${shipId}`, updated);
                 return updated;
             });
