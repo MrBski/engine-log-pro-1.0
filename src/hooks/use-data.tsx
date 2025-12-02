@@ -96,7 +96,6 @@ const getLocalData = (key: string, defaultValue: any) => {
     const saved = localStorage.getItem(key);
     try {
       const parsed = saved ? JSON.parse(saved) : defaultValue;
-      // Jika hasil parse null (karena storage rusak), kembalikan defaultValue
       return parsed ?? defaultValue;
     } catch (e) {
         console.error("Failed to parse local data for key:", key, e);
@@ -149,7 +148,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
         setSettings(convertTimestamps(mergedSettings));
         setInventory(getLocalData(`inventory_${currentShipId}`, initialData.inventory) || []);
-        // Note: logs dan activityLog sudah di-sort oleh fungsi addLog/addActivityLog terakhir
         setLogs(convertTimestamps(getLocalData(`logs_${currentShipId}`, initialData.logs) || []));
         setActivityLog(convertTimestamps(getLocalData(`activityLog_${currentShipId}`, initialData.activityLog) || []));
         setLogbookSections(getLocalData(`logbookSections_${currentShipId}`, initialData.logbookSections));
@@ -220,7 +218,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             
             const logbookSnap = await getDoc(doc(shipDocRef, 'config', 'logbook'));
             
-            // --- FIX: Kueri log sudah menggunakan LIMIT(50) dan ORDER BY (Performa OK) ---
             const [inventorySnap, logsSnap, activityLogSnap] = await Promise.all([
                 getDocs(query(collection(shipDocRef, 'inventory'))),
                 getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'), limit(LOG_PAGE_SIZE))),
@@ -245,14 +242,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
             // LOGS
             const remoteLogs = logsSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
-            setLogs(remoteLogs); // Hanya 50 log terbaru yang dimuat
+            setLogs(remoteLogs); 
             setLocalData(`logs_${shipId}`, remoteLogs);
             setLastLogDoc(logsSnap.docs[logsSnap.docs.length - 1]);
             setHasMoreLogs(logsSnap.docs.length === LOG_PAGE_SIZE);
 
             // ACTIVITY LOGS
             const remoteActivityLog = activityLogSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
-            setActivityLog(remoteActivityLog); // Hanya 50 log terbaru yang dimuat
+            setActivityLog(remoteActivityLog); 
             setLocalData(`activityLog_${shipId}`, remoteActivityLog);
             setLastActivityLogDoc(activityLogSnap.docs[activityLogSnap.docs.length - 1]);
             setHasMoreActivityLogs(activityLogSnap.docs.length === LOG_PAGE_SIZE);
@@ -376,7 +373,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
             setSettings(prev => {
-                // Safety Merge saat update
                 const updated = { ...getInitialData().settings, ...(prev || {}), ...newSettings };
                 setLocalData(`settings_${shipId}`, updated);
                 return updated;
@@ -394,7 +390,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         const updateFn = () => {
             setLogs(prev => {
-                // *** PERUBAHAN KRITIS (PERFORMA): Log baru ditambahkan di depan (DESC order) ***
+                // FIXED: Log baru ditambahkan di depan (Optimasi Performa)
                 const updated = [convertTimestamps(newLog), ...prev];
                 setLocalData(`logs_${shipId}`, updated);
                 return updated;
@@ -408,8 +404,38 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return newLogId;
     };
     
+    // --- FUNGSI BARU UNTUK CASCADING DELETE (Private helper) ---
+    const deleteActivityLogByLogId = async (logId: string) => {
+        if (!shipId || !mainCollectionId) return;
+        
+        // Cari Activity Log yang merujuk logId ini secara lokal
+        const activity = activityLog.find(a => a.logId === logId);
+        if (!activity) return; 
+
+        const activityId = activity.id;
+
+        const updateFn = () => {
+            setActivityLog(prev => {
+                const updated = prev.filter(l => l.id !== activityId);
+                setLocalData(`activityLog_${shipId}`, updated);
+                return updated;
+            });
+        };
+        
+        // Hapus dari Firestore
+        const firebaseFn = () => deleteDoc(doc(db, mainCollectionId, shipId, 'activityLog', activityId));
+        const queueItem: UploadQueueItem = { type: 'delete', path: [shipId, 'activityLog', activityId] };
+        await performWrite(updateFn, firebaseFn, queueItem);
+    };
+    
+    // --- FUNGSI UTAMA DELETE LOG (Sekarang termasuk Casading Delete) ---
     const deleteLog = async (logId: string) => {
         if (!shipId || !mainCollectionId) return;
+        
+        // 1. Lakukan Casacading Delete pada Activity Log terkait
+        await deleteActivityLogByLogId(logId);
+        
+        // 2. Hapus Log Mesin
         const updateFn = () => {
             setLogs(prev => {
                 const updated = prev.filter(l => l.id !== logId);
@@ -429,7 +455,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         
         const updateFn = () => {
             setInventory(prev => {
-                // Inventory tetap diurutkan berdasarkan nama (sedikit data, sorting cepat)
                 const updated = [...prev, newItem].sort((a,b) => a.name.localeCompare(b.name));
                 setLocalData(`inventory_${shipId}`, updated);
                 return updated;
@@ -477,7 +502,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
         const updateFn = () => {
             setActivityLog(prev => {
-                // *** PERUBAHAN KRITIS (PERFORMA): Activity Log baru ditambahkan di depan ***
+                // FIXED: Activity Log baru ditambahkan di depan (Optimasi Performa)
                 const updated = [convertTimestamps(newActivity), ...prev];
                 setLocalData(`activityLog_${shipId}`, updated);
                 return updated;
