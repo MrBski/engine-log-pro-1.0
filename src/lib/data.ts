@@ -15,7 +15,7 @@ export type LogSection = {
 
 export type EngineReading = {
   id:string;
-  key: string; // e.g., "Main Engine RPM", or "M.E Port Side - RPM"
+  key: string; 
   value: string;
   unit: string;
 };
@@ -23,7 +23,7 @@ export type EngineReading = {
 export type EngineLog = {
   id: string;
   timestamp: Date | Timestamp;
-  officer: string; // Name of the officer
+  officer: string; 
   readings: EngineReading[];
   notes: string;
 };
@@ -39,24 +39,19 @@ export type InventoryItem = {
   lowStockThreshold: number;
 };
 
-// --- UPDATE: Menambahkan tipe 'main_engine' ---
+// HAPUS type 'main_engine'
 export type ActivityLog = 
   | { type: 'engine', logId: string, officer: string, id: string; timestamp: Date | Timestamp, name: string, category: InventoryCategory }
   | { type: 'inventory'; notes: string; name: string; officer: string; category: InventoryCategory; id: string; timestamp: Date | Timestamp }
-  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }
-  | { type: 'main_engine'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }; 
+  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp };
 
 
 export type AppSettings = {
   shipName: string;
   officers: string[];
-  runningHours: number; 
+  runningHours: number; // Hanya total jam saja
   
-  // --- UPDATE: Field Baru untuk Main Engine ---
-  mainEngineStatus: 'on' | 'off'; 
-  mainEngineStartTime: number | null; 
-  mainEngineLastStopped: Date | Timestamp | null;
-
+  // Fitur Generator tetap ada (karena sudah stabil sebelumnya)
   generatorRunningHours: number;
   generatorStatus: 'on' | 'off';
   generatorStartTime: number | null;
@@ -77,11 +72,6 @@ export const getInitialData = (): AppData => ({
     officers: ['Chief Engineer', '2nd Engineer', 'Oiler'],
     runningHours: 0,
     
-    // --- DEFAULT VALUES ---
-    mainEngineStatus: 'off',
-    mainEngineStartTime: null,
-    mainEngineLastStopped: null,
-
     generatorRunningHours: 0,
     generatorStatus: 'off' as 'on' | 'off',
     generatorStartTime: null,
