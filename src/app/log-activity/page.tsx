@@ -1,405 +1,386 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
-import { AppHeader } from "@/components/app-header";
-import { Card } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Icons } from "@/components/icons";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-    DialogFooter,
-    DialogClose,
-} from '@/components/ui/dialog';
+import { type EngineLog } from "@/lib/data";
+import { Bar, BarChart, XAxis, YAxis, Legend, CartesianGrid, Tooltip } from "recharts";
+import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
+import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
-import * as htmlToImage from 'html-to-image';
+import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 
-
-const sectionColors: { [key: string]: string } = {
-    'M.E Port Side': 'bg-red-600',
-    'M.E Starboard': 'bg-green-600',
-    'Generator': 'bg-sky-600',
-    'Daily Tank': 'bg-purple-600',
-    'Flowmeter': 'bg-amber-600',
-    'Others': 'bg-slate-500',
-    'Fuel Consumption': 'bg-orange-600',
-};
+// --- HELPERS ---
+function formatDuration(seconds: number) {
+    if (isNaN(seconds)) return "00:00:00";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
 
 const safeToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
-    if (typeof timestamp.toDate === 'function') { // Firestore Timestamp
-        return timestamp.toDate();
-    }
-    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
-      const date = new Date(timestamp);
-      if (!isNaN(date.getTime())) {
-        return date;
-      }
-    }
-    if (typeof timestamp === 'object' && timestamp.seconds) {
-        return new Date(timestamp.seconds * 1000);
-    }
+    if (typeof timestamp.toDate === 'function') return timestamp.toDate();
+    const date = new Date(timestamp);
+    if (!isNaN(date.getTime())) return date;
     return null;
 };
 
-const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions = {}): string => {
-    if (!date) return '...';
-    try {
-        return date.toLocaleString('id-ID', options);
-    } catch {
-        return 'Invalid Date';
-    }
-}
+const formatShortDate = (date: Date | null) => {
+    if (!date) return "-";
+    return date.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
 
-// --- LOG ENTRY CARD COMPONENT (PREVIEW) ---
-function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
-    const { toast } = useToast();
-    const printRef = useRef<HTMLDivElement>(null);
+export default function DashboardPage() {
+  const { 
+    inventory, logs, settings, 
+    updateSettings, addActivityLog, 
+    loading, settingsLoading 
+  } = useData();
+  
+  const [mounted, setMounted] = useState(false);
+  const [genElapsed, setGenElapsed] = useState(0); 
+  const [meElapsed, setMeElapsed] = useState(0);
+  
+  const { toast } = useToast();
+  const { user } = useAuth();
 
-    const logTimestamp = safeToDate(log?.timestamp);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-    const handleShare = useCallback(async () => {
-        if (!printRef.current) return;
+  // --- SAFE VARIABLES (PENTING UNTUK MENCEGAH CRASH) ---
+  const meStatus = settings?.mainEngineStatus || 'off';
+  const genStatus = settings?.generatorStatus || 'off';
+  const meStartTime = settings?.mainEngineStartTime;
+  const genStartTime = settings?.generatorStartTime;
+  const meLastStopped = settings?.mainEngineLastStopped ? safeToDate(settings.mainEngineLastStopped) : null;
+  const meRunningHours = settings?.runningHours || 0;
+  const genRunningHours = settings?.generatorRunningHours || 0;
 
-        try {
-            const dataUrl = await htmlToImage.toPng(printRef.current, {
-                quality: 0.95,
-                backgroundColor: 'hsl(var(--background))',
-                skipAutoScale: false,
-                pixelRatio: 2
-            });
+  // --- TIMER LOGIC ---
+  useEffect(() => {
+    if (!settings) return;
 
-            const blob = await (await fetch(dataUrl)).blob();
-            const file = new File([blob], `engine-log-${log?.id}.png`, { type: blob.type });
-
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: 'Engine Log',
-                    text: `Engine Log Entry for ${formatSafeDate(logTimestamp)}`,
-                });
-            } else {
-                const link = document.createElement('a');
-                link.download = `engine-log-${log?.id}.png`;
-                link.href = dataUrl;
-                link.click();
-            }
-        } catch (error) {
-            console.error('oops, something went wrong!', error);
-            toast({
-                variant: 'destructive',
-                title: 'Failed to Share',
-                description: 'Could not generate or share the log image.'
-            });
+    const calculateSeconds = (totalHours: number, startTime: number | null | undefined, status: string | undefined) => {
+        if (status === 'on' && startTime) {
+            const elapsed = (Date.now() - startTime) / 1000;
+            return (totalHours * 3600) + elapsed;
         }
-    }, [log, logTimestamp, toast]);
+        return totalHours * 3600;
+    };
 
-    if (!log) {
-        return (
-            <DialogContent>
-                <DialogHeader><DialogTitle>Log Not Found</DialogTitle></DialogHeader>
-                <p>Log data not found. Please try again.</p>
-                <DialogFooter><DialogClose asChild><Button variant="secondary">Close</Button></DialogClose></DialogFooter>
-            </DialogContent>
-        )
+    setGenElapsed(calculateSeconds(genRunningHours, genStartTime, genStatus));
+    setMeElapsed(calculateSeconds(meRunningHours, meStartTime, meStatus)); 
+
+    const interval = setInterval(() => {
+        if (genStatus === 'on' && genStartTime) {
+            const elapsed = (Date.now() - genStartTime) / 1000;
+            setGenElapsed((genRunningHours * 3600) + elapsed);
+        }
+        if (meStatus === 'on' && meStartTime) {
+            const elapsed = (Date.now() - meStartTime) / 1000;
+            setMeElapsed((meRunningHours * 3600) + elapsed);
+        }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [settings, genRunningHours, genStartTime, genStatus, meRunningHours, meStartTime, meStatus]);
+
+
+  // --- HANDLER: GENERATOR ---
+  const handleGeneratorToggle = async () => {
+    if (!settings || !user || !user.name) return;
+    if (genStatus === 'on') {
+      const endTime = Date.now();
+      const startTime = genStartTime || endTime;
+      const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
+      try {
+        await updateSettings({
+            generatorStatus: 'off',
+            generatorStartTime: null,
+            generatorRunningHours: genRunningHours + elapsedHours,
+        });
+        await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator turned OFF', officer: user.name });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed update." }); }
+    } else {
+      try {
+        await updateSettings({ generatorStatus: 'on', generatorStartTime: Date.now() });
+        await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator turned ON', officer: user.name });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed update." }); }
     }
+  };
 
-    const getReadingsForSection = (title: string) => log.readings.filter(r => r.key.startsWith(title));
+  const handleGeneratorReset = async () => {
+     if (!settings || !user || !user.name) return;
+     try {
+        await updateSettings({
+            generatorRunningHours: 0,
+            generatorStartTime: genStatus === 'on' ? Date.now() : null,
+        });
+        await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator RHS Reset', officer: user.name });
+        toast({ title: "Reset", description: "Generator hours reset." });
+     } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed reset." }); }
+  };
 
-    const sections = (logbookSections || []).map(s => ({
-        ...s,
-        readings: getReadingsForSection(s.title)
-    })).filter(s => s.readings.length > 0 && s.readings.some(r => r.value));
+  // --- HANDLER: MAIN ENGINE ---
+  const handleMEToggle = async () => {
+    if (!settings || !user || !user.name) return;
 
-    const renderReading = (reading: EngineReading) => (
-        <div key={reading.id} className="flex items-center border-b border-white/5 py-0.5">
-            <label className="w-1/2 font-medium text-xs text-muted-foreground">{reading.key.replace(/.*? - /g, '')}</label>
-            <div className="w-1/2 text-right font-mono text-xs font-semibold">
-                {reading.value} <span className="text-muted-foreground/50">{reading.unit}</span>
-            </div>
+    if (meStatus === 'on') {
+      const endTime = Date.now();
+      const startTime = meStartTime || endTime;
+      const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
+      try {
+        await updateSettings({
+            mainEngineStatus: 'off',
+            mainEngineStartTime: null,
+            mainEngineLastStopped: new Date(), 
+            runningHours: meRunningHours + elapsedHours,
+        });
+        await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'M.E. Stopped (FWE)', officer: user.name });
+        toast({ title: "M.E. Stopped", description: "Recorded as FWE." });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to stop M.E." }); }
+    } else {
+      try {
+        await updateSettings({
+            mainEngineStatus: 'on',
+            mainEngineStartTime: Date.now(),
+        });
+        await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'M.E. Started (SBE)', officer: user.name });
+        toast({ title: "M.E. Started", description: "Tracking started (SBE)." });
+      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to start M.E." }); }
+    }
+  };
+
+  // --- DATA PREP ---
+  const lowStockItems = (inventory || []).filter(item => item.stock <= item.lowStockThreshold);
+  const sortedLogs = [...(logs || [])].sort((a, b) => {
+    const dateA = safeToDate(a.timestamp);
+    const dateB = safeToDate(b.timestamp);
+    if (!dateA || !dateB) return 0;
+    return dateB.getTime() - dateA.getTime();
+  });
+  const latestLog = sortedLogs.length > 0 ? sortedLogs[0] : null;
+  const recentLogs = sortedLogs.slice(0, 5);
+  
+  const getReading = (log: EngineLog, key: string) => {
+    if (!log.readings) return 'N/A';
+    const reading = log.readings.find(r => r.key.toLowerCase().includes(key.toLowerCase()));
+    return reading ? `${reading.value} ${reading.unit}` : 'N/A';
+  }
+  
+  const chartData = sortedLogs.slice(0, 7).reverse().map(log => {
+    const logDate = safeToDate(log.timestamp);
+    return {
+        date: logDate ? logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+        rpm: parseFloat(log.readings.find(r => r.key.includes('RPM'))?.value || '0'),
+        fuel: parseFloat(log.readings.find(r => r.key.includes('Fuel'))?.value || '0'),
+    }
+  });
+  
+  const chartConfig = {
+    rpm: { label: "RPM", color: "hsl(var(--chart-1))" },
+    fuel: { label: "Fuel (L/hr)", color: "hsl(var(--chart-2))" }
+  };
+
+  if (!mounted || loading || settingsLoading) {
+    return (
+      <>
+        <AppHeader />
+        <div className="flex h-[50vh] items-center justify-center">
+            <p className="text-muted-foreground">Loading dashboard data...</p>
         </div>
+      </>
     );
+  }
 
-    const robReading = log.readings.find(r => r.id === 'other_rob');
-    const used4HoursReading = log.readings.find(r => r.id === 'other_used');
-    const robValue = robReading?.value ? parseFloat(robReading.value) : 0;
-    const used4HoursValue = used4HoursReading?.value ? parseFloat(used4HoursReading.value) : 0;
-    const hourlyConsumption = used4HoursValue > 0 ? Math.round(used4HoursValue / 4) : 0;
-    const hasConsumptionData = robReading && used4HoursReading && robValue > 0 && used4HoursValue > 0;
-
-    return (
-        <DialogContent className="max-w-3xl">
-            <DialogHeader><DialogTitle>Engine Log Preview</DialogTitle></DialogHeader>
-            <div className="max-h-[80vh] overflow-y-auto p-1">
-                <div ref={printRef} className="space-y-1 bg-card p-1 rounded-lg text-sm">
-                    <div className="font-bold text-center text-sm h-8 flex items-center justify-center bg-muted/50 rounded-md">
-                        {formatSafeDate(logTimestamp, { dateStyle: 'full', timeStyle: 'short' })}
-                    </div>
-                    <div className="grid md:grid-cols-2 gap-1">
-                        {sections.map(section => (
-                            <div key={section.title} className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
-                                <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors[section.title] || 'bg-gray-500')}>
-                                    {section.title}
-                                </h3>
-                                {section.readings.map(renderReading)}
-                            </div>
-                        ))}
-                        {hasConsumptionData && (
-                            <div className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
-                                <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors['Fuel Consumption'] || 'bg-gray-500')}>
-                                    USED / HOUR (-{hourlyConsumption.toFixed(2)} L/hr)
-                                </h3>
-                                {/* Simple Rob Calc Display */}
-                                <div className="flex items-center border-b border-white/5 py-0.5">
-                                    <label className="w-1/2 font-medium text-xs text-muted-foreground">ROB Akhir</label>
-                                    <div className="w-1/2 text-right font-mono text-xs font-bold">{(robValue - used4HoursValue).toFixed(2)} <span className="text-muted-foreground/50">L</span></div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <div className="space-y-1 pt-1">
-                        <div className="h-6 text-center font-semibold flex items-center justify-center rounded-md bg-accent text-accent-foreground text-sm">
-                            {log.officer}
-                        </div>
-                        <div className="text-center font-bold p-2 rounded-md bg-muted min-h-[30px] flex items-center justify-center text-xs mt-1">
-                            {log.notes}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <DialogFooter>
-                <Button variant="outline" onClick={handleShare}><Icons.share className="mr-2 h-4 w-4" />Share</Button>
-                <DialogClose asChild><Button variant="secondary">Close</Button></DialogClose>
-            </DialogFooter>
-        </DialogContent>
-    )
-}
-
-// --- MAIN PAGE COMPONENT ---
-export default function LogActivityPage() {
-    const { activityLog, deleteLog, logs, logbookSections, activityLogLoading, logbookLoading, fetchMoreActivityLogs, hasMoreActivityLogs } = useData();
-    const { toast } = useToast();
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
-
-    const handleDeleteLog = async (logId: string) => {
-        try {
-            await deleteLog(logId);
-            toast({ title: "Log Deleted", description: "The log entry has been removed." });
-        } catch (error) {
-            toast({ variant: 'destructive', title: "Error", description: "Failed to delete log." });
-        }
-    };
-
-    const handleLoadMore = async () => {
-        setIsLoadingMore(true);
-        await fetchMoreActivityLogs();
-        setIsLoadingMore(false);
-    };
-
-    const sortedActivities = activityLog;
-
-    // --- LOGIC BARU: Menentukan Icon & Warna berdasarkan Type & Notes ---
-    const getActivityConfig = (activity: ActivityLog) => {
-        const notes = activity.notes?.toLowerCase() || '';
-
-        // 1. MAIN ENGINE
-        if (activity.type === 'main_engine') {
-            if (notes.includes('started')) {
-                return { 
-                    icon: <Icons.anchor className="h-5 w-5 text-green-500" />, 
-                    titleColor: 'text-green-500',
-                    borderClass: 'border-l-4 border-l-green-500 pl-2' 
-                };
-            }
-            if (notes.includes('stopped')) {
-                return { 
-                    icon: <Icons.anchor className="h-5 w-5 text-red-500" />, 
-                    titleColor: 'text-red-500',
-                    borderClass: 'border-l-4 border-l-red-500 pl-2'
-                };
-            }
-            return { 
-                icon: <Icons.anchor className="h-5 w-5 text-yellow-500" />, 
-                titleColor: 'text-yellow-500',
-                borderClass: 'border-l-4 border-l-yellow-500 pl-2'
-            };
-        }
-
-        // 2. GENERATOR
-        if (activity.type === 'generator') {
-            if (notes.includes('turned on') || notes.includes('on')) {
-                return { 
-                    icon: <Icons.zap className="h-5 w-5 text-green-500 fill-green-500/20" />, 
-                    titleColor: 'text-green-500',
-                    borderClass: 'border-l-4 border-l-green-500 pl-2'
-                };
-            }
-            if (notes.includes('turned off') || notes.includes('off')) {
-                return { 
-                    icon: <Icons.zap className="h-5 w-5 text-red-500" />, 
-                    titleColor: 'text-red-500',
-                    borderClass: 'border-l-4 border-l-red-500 pl-2'
-                };
-            }
-            if (notes.includes('reset')) {
-                return { 
-                    icon: <Icons.history className="h-5 w-5 text-orange-500" />, 
-                    titleColor: 'text-orange-500',
-                    borderClass: 'border-l-4 border-l-orange-500 pl-2'
-                };
-            }
-            return { 
-                icon: <Icons.zap className="h-5 w-5 text-blue-500" />, 
-                titleColor: 'text-blue-500',
-                borderClass: 'border-l-4 border-l-blue-500 pl-2'
-            };
-        }
-
-        // 3. INVENTORY
-        if (activity.type === 'inventory') {
-            return { 
-                icon: <Icons.archive className="h-5 w-5 text-purple-500" />, 
-                titleColor: 'text-foreground',
-                borderClass: ''
-            };
-        }
-
-        // 4. ENGINE LOG (Laporan Rutin)
-        if (activity.type === 'engine') {
-            return { 
-                icon: <Icons.fileText className="h-5 w-5 text-muted-foreground" />, 
-                titleColor: 'text-foreground',
-                borderClass: ''
-            };
-        }
-
-        // Default
-        return { 
-            icon: <Icons.history className="h-5 w-5 text-muted-foreground" />, 
-            titleColor: 'text-foreground',
-            borderClass: ''
-        };
-    }
-
-    const getActivityTitle = (activity: ActivityLog) => {
-        switch (activity.type) {
-            case 'engine': return 'Engine Log Report';
-            case 'inventory': return `Inventory Update: ${activity.name}`;
-            case 'main_engine': return activity.notes || 'Main Engine Activity'; // Menampilkan notes langsung sebagai judul
-            case 'generator': return activity.notes || 'Generator Activity';   // Menampilkan notes langsung sebagai judul
-            default: return 'System Activity';
-        }
-    }
-
-    return (
+  // Fallback UI jika settings benar-benar hilang
+  if (!settings) {
+      return (
         <>
             <AppHeader />
-            <div className="space-y-4">
-                {(activityLogLoading || logbookLoading) && sortedActivities.length === 0 && (
-                    <div className="space-y-2">
-                        <Card className="p-3 h-[74px] animate-pulse" />
-                        <Card className="p-3 h-[74px] animate-pulse" />
-                        <Card className="p-3 h-[74px] animate-pulse" />
-                    </div>
-                )}
-                
-                {!(activityLogLoading || logbookLoading) && sortedActivities.length === 0 && (
-                    <Card className="text-center p-10">
-                        <p className="text-muted-foreground">No activities recorded yet.</p>
-                    </Card>
-                )}
-
-                <div className="space-y-2">
-                    {sortedActivities.map(activity => {
-                        const logId = activity.type === 'engine' ? activity.logId : undefined;
-                        const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
-                        
-                        // Dapatkan style konfigurasi berdasarkan activity
-                        const config = getActivityConfig(activity);
-
-                        return (
-                            <Card key={activity.id} className={cn("flex items-center justify-between p-3 transition-all", config.borderClass)}>
-                                <div className="flex items-center gap-3">
-                                    {/* Icon Render */}
-                                    <div className="p-2 bg-muted/30 rounded-full">
-                                        {config.icon}
-                                    </div>
-                                    
-                                    <div>
-                                        {/* Title Render dengan warna dinamis */}
-                                        <p className={cn("font-semibold text-sm", config.titleColor)}>
-                                            {getActivityTitle(activity)}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {formatSafeDate(safeToDate(activity.timestamp), { dateStyle: 'short', timeStyle: 'short' })} - {' '}
-                                            <span className="font-medium opacity-80">
-                                                by {activity.officer}
-                                            </span>
-                                        </p>
-                                        {/* Tampilkan notes tambahan untuk tipe inventory/engine jika perlu */}
-                                        {activity.type === 'inventory' && activity.notes && (
-                                            <p className="text-xs text-muted-foreground italic mt-0.5">"{activity.notes}"</p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Action Buttons (View/Delete for Engine Logs) */}
-                                <div className="flex items-center gap-1">
-                                    {activity.type === 'engine' && logId && associatedLog && (
-                                        <>
-                                            <Dialog>
-                                                <DialogTrigger asChild>
-                                                    <Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button>
-                                                </DialogTrigger>
-                                                <LogEntryCard log={associatedLog} logbookSections={logbookSections as LogSection[]} />
-                                            </Dialog>
-
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                                        <Icons.trash className="h-4 w-4" />
-                                                    </Button>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            This action cannot be undone. This will permanently delete the log entry.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDeleteLog(logId)}>Delete</AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </>
-                                    )}
-                                </div>
-                            </Card>
-                        )
-                    })}
-                </div>
-
-                {hasMoreActivityLogs && (
-                    <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={handleLoadMore}
-                        disabled={isLoadingMore}
-                    >
-                        {isLoadingMore ? "Loading..." : "Muat Selanjutnya"}
-                    </Button>
-                )}
+            <div className="flex h-[50vh] items-center justify-center flex-col">
+                <p className="text-muted-foreground">Initializing data...</p>
+                <p className="text-xs text-muted-foreground">If this persists, please clear browser data.</p>
             </div>
         </>
-    )
+      )
+  }
+
+  // --- VISUAL STYLING (AMBIENT LIGHTS) ---
+  const genCardClass = genStatus === 'on' 
+    ? "border-green-500 shadow-[0_0_20px_rgba(59,130,246,0.6)] bg-slate-950/60 transition-all duration-500" 
+    : "border-red-900/50 shadow-[0_0_15px_rgba(59,130,246,0.15)] bg-slate-950/30 transition-all duration-500"; 
+
+  const meCardClass = meStatus === 'on'
+    ? "border-green-500 shadow-[0_0_20px_rgba(234,179,8,0.6)] bg-slate-950/60 transition-all duration-500"
+    : "border-red-900/50 shadow-[0_0_15px_rgba(234,179,8,0.15)] bg-slate-950/30 transition-all duration-500";
+
+
+  return (
+    <div className="flex flex-col gap-6">
+      <AppHeader />
+      <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+        
+        {/* --- MAIN ENGINE CARD --- */}
+        <Card className={cn("flex flex-col p-4 justify-between", meCardClass)}>
+          <div className="flex-1">
+              <div className="flex items-start">
+                <Icons.anchor className={cn("h-6 w-6 mr-4 transition-colors", meStatus === 'on' ? "text-yellow-400 animate-pulse" : "text-muted-foreground")} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
+                  <p className="text-xl font-bold">{formatDuration(meElapsed)}</p>
+                  
+                  <p className="text-xs text-muted-foreground mt-1">
+                      {meStatus === 'on' 
+                        ? <span className="text-green-400 font-medium">Started: {formatShortDate(safeToDate(meStartTime))}</span>
+                        : <span className="text-red-400 font-medium">Stopped: {formatShortDate(meLastStopped)}</span>
+                      }
+                  </p>
+                </div>
+              </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+                 <Button 
+                    size="icon" 
+                    className={cn("h-8 w-8 transition-colors", meStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700")}
+                    onClick={handleMEToggle}
+                    disabled={!user}
+                >
+                    {meStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
+                </Button>
+            </div>
+        </Card>
+
+        {/* --- GENERATOR CARD --- */}
+        <Card className={cn("flex flex-col p-4 justify-between", genCardClass)}>
+            <div className="flex-1">
+              <div className="flex items-start">
+                <Icons.zap className={cn("h-6 w-6 mr-4 transition-colors", genStatus === 'on' ? "text-blue-400 animate-pulse" : "text-muted-foreground")} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
+                   <p className="text-xl font-bold">{formatDuration(genElapsed)}</p>
+                   <p className="text-xs text-muted-foreground mt-1">
+                      {genStatus === 'on' 
+                        ? <span className="text-green-400 font-medium">On Duty</span>
+                        : <span className="text-muted-foreground">Standby</span>
+                      }
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-2">
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white" disabled={!user}><Icons.reset /></Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader><AlertDialogTitle>Reset Generator RHS?</AlertDialogTitle><AlertDialogDescription>This will reset to 0.</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleGeneratorReset}>Reset</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <Button 
+                    size="icon" 
+                    className={cn("h-8 w-8 transition-colors", genStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700")}
+                    onClick={handleGeneratorToggle}
+                    disabled={!user}
+                >
+                    {genStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
+                </Button>
+            </div>
+        </Card>
+
+        {/* --- FUEL CARD --- */}
+        <Card className="flex items-center p-4">
+          <Icons.fuel className="h-6 w-6 text-muted-foreground mr-4" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-muted-foreground">Fuel Consumption</p>
+            <p className="text-xl font-bold">{latestLog ? getReading(latestLog, 'USED 4 Hours') : 'N/A'}</p>
+          </div>
+        </Card>
+
+        {/* --- ALERTS CARD --- */}
+        <Card className="flex items-center p-4">
+          <Icons.alert className="h-6 w-6 text-destructive mr-4" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-muted-foreground">Low Stock Alerts</p>
+            <p className="text-xl font-bold">{lowStockItems.length} items</p>
+          </div>
+        </Card>
+      </div>
+
+      {/* --- CHART SECTION --- */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Recent Logs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Timestamp</TableHead>
+                  <TableHead>Officer</TableHead>
+                  <TableHead>RPM</TableHead>
+                  <TableHead>Fuel Cons.</TableHead>
+                  <TableHead>Notes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentLogs.map(log => {
+                  const logDate = safeToDate(log.timestamp);
+                  return (
+                    <TableRow key={log.id}>
+                      <TableCell>{logDate ? logDate.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short'}) : '...'}</TableCell>
+                      <TableCell>{log.officer}</TableCell>
+                      <TableCell>{getReading(log, 'RPM')}</TableCell>
+                      <TableCell>{getReading(log, 'Fuel')}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{log.notes}</TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Performance Overview</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[300px] pl-2">
+            <ChartContainer config={chartConfig} className="w-full h-full">
+                <BarChart accessibilityLayer data={chartData}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    tickFormatter={(value) => value.slice(0, 6)}
+                    />
+                    <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-1))" />
+                    <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-2))" />
+                    <Tooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
+                    <Legend content={<ChartLegendContent />} />
+                    <Bar dataKey="rpm" fill="var(--color-rpm)" radius={4} yAxisId="left" />
+                    <Bar dataKey="fuel" fill="var(--color-fuel)" radius={4} yAxisId="right" />
+                </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
 }
