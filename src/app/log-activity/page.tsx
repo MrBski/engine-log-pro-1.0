@@ -1,5 +1,4 @@
 // Salin dan tempel kode ini ke src/app/log-activity/page.tsx Anda
-
 "use client";
 
 import { useState, useCallback, useRef } from "react";
@@ -58,7 +57,7 @@ const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions =
     }
 }
 
-// --- KOMPONEN POPUP DETAIL LOG (tidak diubah, namun menerima logbookSections dengan aman) ---
+// --- KOMPONEN POPUP DETAIL LOG (Tidak diubah) ---
 function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
     const { toast } = useToast();
     const printRef = useRef<HTMLDivElement>(null);
@@ -86,7 +85,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
         }
     }, [log, logTimestamp, toast]);
 
-    if (!log || logbookSections.length === 0) return null; // Safety check
+    if (!log || logbookSections.length === 0) return null; 
 
     const getReadingsForSection = (title: string) => log.readings.filter(r => r.key.startsWith(title));
     const sections = (logbookSections || []).map(s => ({
@@ -132,23 +131,26 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
     )
 }
 
-// --- LOGIC JUDUL AKTIVITAS (MEMPERBAIKI MASALAH LEGACY DATA) ---
+// --- LOGIC JUDUL AKTIVITAS (DIPERLENGKAPI DENGAN INVENTORY) ---
 const getActivityTitle = (activity: ActivityLog) => {
     if (!activity) return 'Unknown Activity';
     
-    // Safety: Memastikan type adalah string sebelum diolah
     const type = activity.type as string; 
 
     if (type === 'engine') return 'Engine Log Entry';
-    if (type === 'inventory') return `"${activity.name}" updated`;
     
+    // === PERUBAHAN DI SINI: MENAMBAHKAN INVENTORY LOGIC ===
+    if (type === 'inventory') {
+        // Asumsi activity.notes berisi aksi (e.g., "used 2 pcs")
+        return `${activity.name || 'Inventory Item'} ${activity.notes || 'updated'}`;
+    }
+    // === AKHIR PERUBAHAN INVENTORY ===
+
     // Menggabungkan logika untuk Generator dan Main Engine (M.E)
     if (type === 'generator' || type === 'main_engine') {
-        // Menggunakan notes yang sudah disetel oleh toggle function
         return activity.notes || `${type === 'main_engine' ? 'Main Engine' : 'Generator'} Action`; 
     }
     
-    // Termasuk 'main_engine (Legacy Data)' jika tipe tidak dikenali sebagai salah satu di atas
     return 'System Activity';
 }
 
@@ -174,7 +176,6 @@ export default function LogActivityPage() {
     };
 
     // --- SAFETY FILTER & LOADING CHECK ---
-    // Pastikan activityLog dan logbookSections ada sebelum diproses
     const safeActivities = (activityLog || []).filter(item => item && item.type && item.timestamp);
     const safeLogbookSections = logbookSections || [];
 
@@ -183,8 +184,9 @@ export default function LogActivityPage() {
         switch (type) {
             case 'engine': return <Icons.file className="h-4 w-4 text-muted-foreground" />;
             case 'inventory': return <Icons.archive className="h-4 w-4 text-muted-foreground" />;
-            case 'generator': return <Icons.zap className="h-4 w-4 text-muted-foreground" />;
-            case 'main_engine': return <Icons.zap className="h-4 w-4 text-muted-foreground" />; // Menggunakan ikon yang sama
+            case 'generator': 
+            case 'main_engine': 
+                return <Icons.zap className="h-4 w-4 text-muted-foreground" />; // Menggunakan ikon yang sama
             default: return <Icons.history className="h-4 w-4 text-muted-foreground" />;
         }
     }
@@ -210,12 +212,9 @@ export default function LogActivityPage() {
 
                 <div className="space-y-2">
                     {safeActivities.map(activity => {
-                        // Safety: Kita hanya perlu ID log untuk mencari EngineLog yang terkait
                         const logId = activity.type === 'engine' ? activity.logId : undefined;
-                        // logs sudah diurutkan desc, find() akan menemukan yang cocok
                         const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
                         
-                        // Cek apakah ini adalah entri Engine Log yang dapat dilihat/dihapus
                         const isDeletableEngineLog = activity.type === 'engine' && associatedLog;
 
                         return (
@@ -234,7 +233,6 @@ export default function LogActivityPage() {
                                         <>
                                             <Dialog>
                                                 <DialogTrigger asChild><Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button></DialogTrigger>
-                                                {/* Melewatkan logbookSections yang sudah dipastikan bukan null/undefined */}
                                                 <LogEntryCard log={associatedLog} logbookSections={safeLogbookSections} />
                                             </Dialog>
                                             <AlertDialog>
