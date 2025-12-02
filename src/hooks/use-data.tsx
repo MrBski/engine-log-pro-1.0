@@ -90,11 +90,13 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 const MAIN_COLLECTION_PREFIX = 'TB.';
 const LOG_PAGE_SIZE = 50;
 
+// --- FIX: Anti-Null Local Data Fetcher ---
 const getLocalData = (key: string, defaultValue: any) => {
     if (typeof window === 'undefined') return defaultValue;
     const saved = localStorage.getItem(key);
     try {
       const parsed = saved ? JSON.parse(saved) : defaultValue;
+      // Jika hasil parse null (karena storage rusak), kembalikan defaultValue
       return parsed ?? defaultValue;
     } catch (e) {
         console.error("Failed to parse local data for key:", key, e);
@@ -115,6 +117,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const { user, isLoading: authLoading } = useAuth();
     const { toast } = useToast();
     
+    // Inisialisasi state dengan aman
     const [settings, setSettings] = useState<AppSettings | undefined>(undefined);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [logs, setLogs] = useState<EngineLog[]>([]);
@@ -140,9 +143,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const currentShipId = user?.shipId || 'guest-user';
         const initialData = getInitialData();
         
-        // --- SAFE MERGE LOGIC ---
-        // Menggabungkan data initial (yang punya field baru) dengan data tersimpan (yang lama)
-        // Ini mencegah crash jika data lama tidak punya 'mainEngineStatus'
+        // --- FIX KRUSIAL: DATA MERGING ---
+        // Menggabungkan data lama (yang mungkin field-nya kurang) dengan data baru
         const savedSettings = getLocalData(`settings_${currentShipId}`, initialData.settings);
         const mergedSettings = { ...initialData.settings, ...savedSettings };
 
@@ -224,9 +226,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'), limit(LOG_PAGE_SIZE))),
             ]);
 
-            // --- MERGE REMOTE DATA ---
+            // --- FIX: MERGE REMOTE DATA JUGA ---
             const remoteSettingsData = settingsSnap.exists() ? settingsSnap.data() : getInitialData().settings;
-            // Merge again just to be safe with remote data too
+            // Gabungkan juga data dari server dengan struktur lokal terbaru
             const finalRemoteSettings = { ...getInitialData().settings, ...remoteSettingsData };
             const convertedSettings = convertTimestamps(finalRemoteSettings);
             
@@ -263,7 +265,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setSettingsLoading(false);
             setInventoryLoading(false);
             setLogsLoading(false);
-            setActivityLogLoading(false); // Pastikan ini juga dimatikan
+            setActivityLogLoading(false);
+            setLogbookLoading(false);
         }
     }, [user, shipId, mainCollectionId, toast, isSyncing]);
 
@@ -358,7 +361,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
             setSettings(prev => {
-                // Merge dengan initialData juga untuk keamanan extra
+                // Safety Merge saat update
                 const updated = { ...getInitialData().settings, ...(prev || {}), ...newSettings };
                 setLocalData(`settings_${shipId}`, updated);
                 return updated;
