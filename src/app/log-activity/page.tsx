@@ -132,16 +132,18 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
 
 // --- HALAMAN UTAMA ---
 export default function LogActivityPage() {
+    // deleteLog sekarang sudah termasuk cascading delete di use-data.ts
     const { activityLog, deleteLog, logs, logbookSections, activityLogLoading, logbookLoading, fetchMoreActivityLogs, hasMoreActivityLogs } = useData();
     const { toast } = useToast();
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     const handleDeleteLog = async (logId: string) => {
         try {
+            // Memanggil deleteLog, yang sekarang menghapus Engine Log DAN Activity Log terkait
             await deleteLog(logId);
-            toast({ title: "Log Deleted" });
+            toast({ title: "Log Deleted", description: "Engine log and related activity removed." });
         } catch (error) {
-            toast({ variant: 'destructive', title: "Error" });
+            toast({ variant: 'destructive', title: "Error", description: "Failed to delete log." });
         }
     };
 
@@ -152,11 +154,9 @@ export default function LogActivityPage() {
     };
 
     // --- SAFETY FILTER ---
-    // Ini bagian penting: Membuang data yang rusak/undefined/null agar tidak CRASH
     const safeActivities = (activityLog || []).filter(item => item && item.type && item.timestamp);
 
     const getIcon = (type: any) => {
-        // Fallback jika tipe tidak dikenali (misal: sisa data 'main_engine')
         switch (type) {
             case 'engine': return <Icons.file className="h-4 w-4 text-muted-foreground" />;
             case 'inventory': return <Icons.archive className="h-4 w-4 text-muted-foreground" />;
@@ -166,16 +166,13 @@ export default function LogActivityPage() {
     }
 
     const getActivityTitle = (activity: ActivityLog) => {
-        // Fallback safe
         if (!activity) return 'Unknown Activity';
-        
-        // Handling tipe sisa ('main_engine') tanpa error
         const type = activity.type as string; 
 
         if (type === 'engine') return 'Engine Log Entry';
         if (type === 'inventory') return `"${activity.name}" updated`;
         if (type === 'generator') return activity.notes || 'Generator Action';
-        if (type === 'main_engine') return 'Main Engine (Legacy Data)'; // Menangani data sisa
+        if (type === 'main_engine') return 'Main Engine (Legacy Data)';
         
         return 'System Activity';
     }
@@ -194,8 +191,8 @@ export default function LogActivityPage() {
 
                 <div className="space-y-2">
                     {safeActivities.map(activity => {
-                        // Safe access
                         const logId = activity.type === 'engine' ? activity.logId : undefined;
+                        // logs sudah diurutkan desc, find() akan menemukan yang cocok
                         const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
 
                         return (
@@ -210,17 +207,19 @@ export default function LogActivityPage() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    {activity.type === 'engine' && logId && associatedLog && (
+                                    {/* Tombol hanya muncul jika log terkait ditemukan */}
+                                    {activity.type === 'engine' && associatedLog && (
                                         <>
                                             <Dialog>
                                                 <DialogTrigger asChild><Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button></DialogTrigger>
-                                                <LogEntryCard log={associatedLog} logbookSections={logbookSections as LogSection[]} />
+                                                {/* logbookSections selalu dilewatkan di sini */}
+                                                <LogEntryCard log={associatedLog} logbookSections={logbookSections as LogSection[] || []} />
                                             </Dialog>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive"><Icons.trash className="h-4 w-4" /></Button></AlertDialogTrigger>
                                                 <AlertDialogContent>
-                                                    <AlertDialogHeader><AlertDialogTitle>Delete?</AlertDialogTitle><AlertDialogDescription>Undoing is not possible.</AlertDialogDescription></AlertDialogHeader>
-                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteLog(logId)}>Delete</AlertDialogAction></AlertDialogFooter>
+                                                    <AlertDialogHeader><AlertDialogTitle>Delete?</AlertDialogTitle><AlertDialogDescription>Ini akan menghapus Engine Log DAN Activity Log terkait. Undoing is not possible.</AlertDialogDescription></AlertDialogHeader>
+                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteLog(logId!)}>Delete</AlertDialogAction></AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
                                         </>
