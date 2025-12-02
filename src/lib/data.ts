@@ -39,7 +39,7 @@ export type InventoryItem = {
   lowStockThreshold: number;
 };
 
-// Pastikan type 'main_engine' ada di sini
+// --- UPDATE: Menambahkan tipe 'main_engine' ---
 export type ActivityLog = 
   | { type: 'engine', logId: string, officer: string, id: string; timestamp: Date | Timestamp, name: string, category: InventoryCategory }
   | { type: 'inventory'; notes: string; name: string; officer: string; category: InventoryCategory; id: string; timestamp: Date | Timestamp }
@@ -52,9 +52,10 @@ export type AppSettings = {
   officers: string[];
   runningHours: number; 
   
+  // --- UPDATE: Field Baru untuk Main Engine ---
   mainEngineStatus: 'on' | 'off'; 
   mainEngineStartTime: number | null; 
-  mainEngineLastStopped: Date | Timestamp | null; // <-- FIELD BARU (Last FWE)
+  mainEngineLastStopped: Date | Timestamp | null;
 
   generatorRunningHours: number;
   generatorStatus: 'on' | 'off';
@@ -76,9 +77,10 @@ export const getInitialData = (): AppData => ({
     officers: ['Chief Engineer', '2nd Engineer', 'Oiler'],
     runningHours: 0,
     
+    // --- DEFAULT VALUES ---
     mainEngineStatus: 'off',
     mainEngineStartTime: null,
-    mainEngineLastStopped: null, // <-- Default Value
+    mainEngineLastStopped: null,
 
     generatorRunningHours: 0,
     generatorStatus: 'off' as 'on' | 'off',
