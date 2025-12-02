@@ -1,13 +1,107 @@
-// --- FUNGSI LogEntryCard di src/app/log-activity/page.tsx ---
+"use client";
 
+import { useState, useCallback, useRef } from "react";
+import { type ActivityLog, type EngineLog, type EngineReading, type LogSection } from "@/lib/data";
+import { AppHeader } from "@/components/app-header";
+import { Card } from "@/components/ui/card";
+import { Icons } from "@/components/icons";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogFooter,
+    DialogClose,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { cn } from '@/lib/utils';
+import * as htmlToImage from 'html-to-image';
+import { useData } from '@/hooks/use-data';
+
+// --- HELPER CONSTANTS & FUNCTIONS (REKOMENDASI: Pindahkan ke src/lib/constants.ts dan src/lib/utils.ts) ---
+
+/**
+ * @description Warna latar belakang untuk section Log Preview.
+ */
+const sectionColors: { [key: string]: string } = {
+    'M.E Port Side': 'bg-red-600',
+    'M.E Starboard': 'bg-green-600',
+    'Generator': 'bg-sky-600',
+    'Daily Tank': 'bg-purple-600',
+    'Flowmeter': 'bg-amber-600',
+    'Others': 'bg-slate-500',
+    'Fuel Consumption': 'bg-orange-600', // Warna khusus untuk kartu perhitungan
+};
+
+/**
+ * @description Mengkonversi timestamp ke objek Date yang aman.
+ */
+const safeToDate = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    if (timestamp instanceof Date) return timestamp;
+    if (typeof timestamp.toDate === 'function') return timestamp.toDate();
+    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) return date;
+    }
+    if (typeof timestamp === 'object' && timestamp.seconds) {
+        return new Date(timestamp.seconds * 1000);
+    }
+    return null;
+};
+
+/**
+ * @description Memformat objek Date yang aman ke string lokal.
+ */
+const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions = {}): string => {
+    if (!date) return '...';
+    try {
+        return date.toLocaleString('id-ID', options);
+    } catch {
+        return 'Invalid Date';
+    }
+}
+
+// --- KOMPONEN POPUP DETAIL LOG (LOGIC SHARE & PRINT) ---
+/**
+ * @description Komponen Modal untuk menampilkan detail Engine Log dan opsi Share/Print (PNG).
+ */
 function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
-    // ... kode yang sudah ada ...
+    const { toast } = useToast();
+    const printRef = useRef<HTMLDivElement>(null);
+    const logTimestamp = safeToDate(log?.timestamp);
+
+    /**
+     * @description Menangani konversi konten log ke PNG dan memicu fungsi Share native.
+     */
+    const handleShare = useCallback(async () => {
+        if (!printRef.current) return;
+        try {
+            const dataUrl = await htmlToImage.toPng(printRef.current, {
+                quality: 0.95, backgroundColor: 'hsl(var(--background))', skipAutoScale: false, pixelRatio: 2
+            });
+            const blob = await (await fetch(dataUrl)).blob();
+            const file = new File([blob], `engine-log-${log?.id}.png`, { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: 'Engine Log' });
+            } else {
+                const link = document.createElement('a');
+                link.download = `engine-log-${log?.id}.png`;
+                link.href = dataUrl;
+                link.click();
+            }
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Failed to Share' });
+        }
+    }, [log, logTimestamp, toast]);
 
     if (!log || logbookSections.length === 0) return null; 
-    
+
     // --- LOGIC PERHITUNGAN USED/HOUR DAN ROB (DIKEMBALIKAN) ---
-    
-    // 1. Ambil data mentah
     const robReading = log.readings.find(r => r.key.includes('RoB'));
     const used4HoursReading = log.readings.find(r => r.key.includes('USED 4 Hours'));
     
@@ -21,12 +115,12 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
         usedPerHour = used4Hours / 4; // L/hr
         let currentRob = robAwal;
         
-        // Hitung sisa ROB per jam
+        // Hitung sisa ROB per jam (4 jam)
         for (let i = 1; i <= 4; i++) {
             currentRob -= usedPerHour;
             robAkhirJam.push({
                 jam: i,
-                rob: parseFloat(currentRob.toFixed(2)), // Pembulatan 2 desimal
+                rob: parseFloat(currentRob.toFixed(2)),
                 usedPerHour: parseFloat(usedPerHour.toFixed(2))
             });
         }
@@ -36,19 +130,46 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
     // --- AKHIR LOGIC PERHITUNGAN ---
 
 
-    // ... kode yang sudah ada untuk sections dan renderReading ...
+    const getReadingsForSection = (title: string) => log.readings.filter(r => r.key.startsWith(title));
+    
+    // Merekonstruksi struktur section log berdasarkan logbookSections yang dikonfigurasi
+    const sections = (logbookSections || []).map(s => ({
+        ...s, readings: getReadingsForSection(s.title)
+    })).filter(s => s.readings.length > 0 && s.readings.some(r => r.value)); 
+
+    const renderReading = (reading: EngineReading) => (
+        <div key={reading.id} className="flex items-center border-b border-white/5 py-0.5">
+            <label className="w-1/2 font-medium text-xs text-muted-foreground">{reading.key.replace(/.*? - /g, '')}</label>
+            <div className="w-1/2 text-right font-mono text-xs font-semibold">{reading.value} <span className="text-muted-foreground/50">{reading.unit}</span></div>
+        </div>
+    );
 
     return (
         <DialogContent className="max-w-3xl">
-            {/* ... DialogHeader ... */}
+            <DialogHeader><DialogTitle>Engine Log Preview</DialogTitle></DialogHeader>
             <div className="max-h-[80vh] overflow-y-auto p-1">
                 <div ref={printRef} className="space-y-1 bg-card p-1 rounded-lg text-sm">
-                    {/* ... Timestamp dan Grid Section Readings ... */}
+                    {/* Timestamp */}
+                    <div className="font-bold text-center text-sm h-8 flex items-center justify-center bg-muted/50 rounded-md">
+                        {formatSafeDate(logTimestamp, { dateStyle: 'full', timeStyle: 'short' })}
+                    </div>
                     
-                    {/* --- KARTU PERHITUNGAN USED PER HOUR --- */}
+                    {/* Grid Section Reading */}
+                    <div className="grid md:grid-cols-2 gap-1">
+                        {sections.map(section => (
+                            <div key={section.title} className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
+                                <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors[section.title] || 'bg-gray-500')}>
+                                    {section.title}
+                                </h3>
+                                {section.readings.map(renderReading)}
+                            </div>
+                        ))}
+                    </div>
+                    
+                    {/* --- KARTU PERHITUNGAN USED PER HOUR (DIKEMBALIKAN) --- */}
                     {usedPerHour > 0 && (
-                        <div className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
-                            <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors['Fuel Consumption'] || 'bg-orange-600')}>
+                        <div className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm mt-2">
+                            <h3 className={cn("font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs", sectionColors['Fuel Consumption'])}>
                                 USED / HOUR ({usedPerHourDisplay})
                             </h3>
                             <div className="flex items-center border-b border-white/5 py-0.5">
@@ -64,10 +185,160 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
                         </div>
                     )}
                     
-                    {/* ... Officer dan Notes ... */}
+                    {/* Officer dan Notes */}
+                    <div className="space-y-1 pt-1">
+                        <div className="h-6 text-center font-semibold flex items-center justify-center rounded-md bg-accent text-accent-foreground text-sm">{log.officer}</div>
+                        <div className="text-center font-bold p-2 rounded-md bg-muted min-h-[30px] flex items-center justify-center text-xs mt-1">{log.notes}</div>
+                    </div>
                 </div>
             </div>
-            {/* ... DialogFooter ... */}
+            <DialogFooter>
+                <Button variant="outline" onClick={handleShare}><Icons.share className="mr-2 h-4 w-4" />Share</Button>
+                <DialogClose asChild><Button variant="secondary">Close</Button></DialogClose>
+            </DialogFooter>
         </DialogContent>
+    )
+}
+
+// --- LOGIC JUDUL & IKON AKTIVITAS ---
+const getActivityTitle = (activity: ActivityLog) => {
+    if (!activity) return 'Unknown Activity';
+
+    const type = activity.type as string; 
+
+    if (type === 'engine') return 'Engine Log Entry';
+    if (type === 'inventory') return `${activity.name || 'Inventory Item'} ${activity.notes || 'updated'}`;
+    if (type === 'generator' || type === 'main_engine') return activity.notes || `${type === 'main_engine' ? 'Main Engine' : 'Generator'} Action`; 
+
+    return 'System Activity';
+}
+
+const getIconWithColor = (activity: ActivityLog) => {
+    const type = activity.type as string;
+    const notes = activity.notes?.toLowerCase() || '';
+
+    let icon = <Icons.history className="h-4 w-4" />;
+    let colorClass = 'text-muted-foreground';
+
+    if (type === 'engine') {
+        icon = <Icons.file className="h-4 w-4" />;
+    } else if (type === 'inventory') {
+        icon = <Icons.archive className="h-4 w-4" />;
+    } else if (type === 'generator') {
+        icon = <Icons.zap className="h-4 w-4" />;
+        if (notes.includes('turned on')) { colorClass = 'text-sky-500'; } 
+        else if (notes.includes('turned off') || notes.includes('reset')) { colorClass = 'text-red-600'; }
+    } else if (type === 'main_engine') {
+        icon = <Icons.zap className="h-4 w-4" />;
+        if (notes.includes('turned on')) { colorClass = 'text-green-600'; } 
+        else if (notes.includes('turned off') || notes.includes('reset')) { colorClass = 'text-amber-600'; }
+    }
+
+    return (
+        <div className={colorClass}>
+            {icon}
+        </div>
+    );
+};
+
+
+// --- HALAMAN UTAMA LOG ACTIVITY ---
+export default function LogActivityPage() {
+    const { activityLog, deleteLog, logs, logbookSections, activityLogLoading, logbookLoading, fetchMoreActivityLogs, hasMoreActivityLogs } = useData();
+    const { toast } = useToast();
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+    /**
+     * @description Menghapus Engine Log, memicu Cascading Delete di use-data.ts.
+     */
+    const handleDeleteLog = async (logId: string) => {
+        try {
+            await deleteLog(logId);
+            toast({ title: "Log Deleted", description: "Engine log and related activity removed." });
+        } catch (error) {
+            toast({ variant: 'destructive', title: "Error", description: "Failed to delete log." });
+        }
+    };
+
+    /**
+     * @description Memuat lebih banyak Activity Log dari Firestore (Pagination).
+     */
+    const handleLoadMore = async () => {
+        setIsLoadingMore(true);
+        await fetchMoreActivityLogs();
+        setIsLoadingMore(false);
+    };
+
+    // --- SAFETY FILTER & LOADING CHECK ---
+    const safeActivities = (activityLog || []).filter(item => item && item.type && item.timestamp);
+    const safeLogbookSections = logbookSections || [];
+
+
+    if (activityLogLoading || logbookLoading) {
+         return (
+             <>
+                 <AppHeader />
+                 <div className="space-y-2 p-4 pt-10 text-center text-muted-foreground">Loading activities...</div>
+             </>
+         );
+    }
+
+    return (
+        <>
+            <AppHeader />
+            <div className="space-y-4">
+
+                {safeActivities.length === 0 && (
+                    <Card className="text-center p-10"><p className="text-muted-foreground">No activities.</p></Card>
+                )}
+
+                <div className="space-y-2">
+                    {safeActivities.map(activity => {
+                        const logId = activity.type === 'engine' ? activity.logId : undefined;
+                        const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
+
+                        const isDeletableEngineLog = activity.type === 'engine' && associatedLog;
+
+                        return (
+                            <Card key={activity.id} className="flex items-center justify-between p-3">
+                                <div className="flex items-center gap-3">
+                                    {getIconWithColor(activity)}
+                                    <div>
+                                        <p className="font-semibold text-sm">{getActivityTitle(activity)}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {formatSafeDate(safeToDate(activity.timestamp), { dateStyle: 'short', timeStyle: 'short' })} - {activity.officer}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    {isDeletableEngineLog && (
+                                        <>
+                                            {/* Button View Log */}
+                                            <Dialog>
+                                                <DialogTrigger asChild><Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button></DialogTrigger>
+                                                <LogEntryCard log={associatedLog} logbookSections={safeLogbookSections} />
+                                            </Dialog>
+                                            {/* Button Delete Log */}
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive"><Icons.trash className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader><AlertDialogTitle>Delete?</AlertDialogTitle><AlertDialogDescription>Ini akan menghapus Engine Log DAN Activity Log terkait. Undoing is not possible.</AlertDialogDescription></AlertDialogHeader>
+                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteLog(logId!)}>Delete</AlertDialogAction></AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </>
+                                    )}
+                                </div>
+                            </Card>
+                        )
+                    })}
+                </div>
+
+                {/* Tombol Load More untuk Pagination */}
+                {hasMoreActivityLogs && (
+                    <Button variant="outline" className="w-full" onClick={handleLoadMore} disabled={isLoadingMore}>{isLoadingMore ? "Loading..." : "Muat Selanjutnya"}</Button>
+                )}
+            </div>
+        </>
     )
 }
