@@ -164,7 +164,6 @@ export default function DashboardPage() {
      try {
         await updateSettings({
             mainEngineRunningHours: 0,
-            // Opsional: runningHours: 0,
             mainEngineStartTime: settings.mainEngineStatus === 'on' ? Date.now() : null,
             mainEngineLastReset: new Date(),
         });
@@ -221,14 +220,22 @@ export default function DashboardPage() {
       )
   }
   
-  // Logika penentuan warna untuk M.E dan Generator
+  // Logika penentuan warna TOMBOL dan BORDER untuk M.E dan Generator
   const meToggleClassName = settings?.mainEngineStatus === 'on' 
-    ? "bg-green-600 hover:bg-green-700" // Nyala: Kuning-Hijau (diganti Green-600)
-    : "bg-amber-600 hover:bg-amber-700"; // Mati: Kuning-Merah (diganti Amber-600)
+    ? "bg-green-600 hover:bg-green-700" // Tombol ON: Hijau
+    : "bg-amber-600 hover:bg-amber-700"; // Tombol OFF: Kuning/Amber
     
+  const meBorderClassName = settings?.mainEngineStatus === 'on'
+    ? "border-green-600" // Border ON: Hijau
+    : "border-amber-600"; // Border OFF: Kuning/Amber
+
   const genToggleClassName = settings?.generatorStatus === 'on' 
-    ? "bg-sky-500 hover:bg-sky-600" // Nyala: Biru
-    : "bg-red-600 hover:bg-red-700"; // Mati: Merah
+    ? "bg-sky-500 hover:bg-sky-600" // Tombol ON: Biru
+    : "bg-red-600 hover:bg-red-700"; // Tombol OFF: Merah
+    
+  const genBorderClassName = settings?.generatorStatus === 'on'
+    ? "border-sky-500" // Border ON: Biru
+    : "border-red-600"; // Border OFF: Merah
 
   return (
     <div className="flex flex-col gap-6">
@@ -236,7 +243,7 @@ export default function DashboardPage() {
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         
         {/* --- MAIN ENGINE CARD --- */}
-        <Card className="flex flex-col p-4 justify-between">
+        <Card className={cn("flex flex-col p-4 justify-between border-l-4", meBorderClassName)}>
           <div className="flex-1">
             <div className="flex items-start">
               <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
@@ -266,7 +273,7 @@ export default function DashboardPage() {
               </AlertDialog>
               <Button 
                   size="icon" 
-                  className={cn("h-8 w-8", meToggleClassName)} // MENGGUNAKAN CLASSNAME BARU
+                  className={cn("h-8 w-8", meToggleClassName)} 
                   onClick={handleMainEngineToggle}
                   disabled={!user}
               >
@@ -276,7 +283,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* --- GENERATOR CARD --- */}
-        <Card className="flex flex-col p-4 justify-between">
+        <Card className={cn("flex flex-col p-4 justify-between border-l-4", genBorderClassName)}>
             <div className="flex-1">
               <div className="flex items-start">
                 <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
@@ -306,7 +313,7 @@ export default function DashboardPage() {
                 </AlertDialog>
                 <Button 
                     size="icon" 
-                    className={cn("h-8 w-8", genToggleClassName)} // MENGGUNAKAN CLASSNAME BARU
+                    className={cn("h-8 w-8", genToggleClassName)} 
                     onClick={handleGeneratorToggle}
                     disabled={!user}
                 >
@@ -315,6 +322,7 @@ export default function DashboardPage() {
             </div>
         </Card>
 
+        {/* ... Card lainnya tidak berubah ... */}
         <Card className="flex items-center p-4">
           <Icons.fuel className="h-6 w-6 text-muted-foreground mr-4" />
           <div className="flex-1">
