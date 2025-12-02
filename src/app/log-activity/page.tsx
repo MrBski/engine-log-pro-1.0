@@ -139,20 +139,57 @@ const getActivityTitle = (activity: ActivityLog) => {
 
     if (type === 'engine') return 'Engine Log Entry';
     
-    // === PERUBAHAN DI SINI: MENAMBAHKAN INVENTORY LOGIC ===
+    // Inventory
     if (type === 'inventory') {
-        // Asumsi activity.notes berisi aksi (e.g., "used 2 pcs")
         return `${activity.name || 'Inventory Item'} ${activity.notes || 'updated'}`;
     }
-    // === AKHIR PERUBAHAN INVENTORY ===
 
-    // Menggabungkan logika untuk Generator dan Main Engine (M.E)
+    // Toggle Log (Generator / Main Engine)
     if (type === 'generator' || type === 'main_engine') {
         return activity.notes || `${type === 'main_engine' ? 'Main Engine' : 'Generator'} Action`; 
     }
     
     return 'System Activity';
 }
+
+// --- LOGIC IKON BERWARNA BARU ---
+const getIconWithColor = (activity: ActivityLog) => {
+    const type = activity.type as string;
+    const notes = activity.notes?.toLowerCase() || '';
+
+    // Default icon
+    let icon = <Icons.history className="h-4 w-4" />;
+    let colorClass = 'text-muted-foreground';
+
+    if (type === 'engine') {
+        icon = <Icons.file className="h-4 w-4" />;
+    } else if (type === 'inventory') {
+        icon = <Icons.archive className="h-4 w-4" />;
+    } else if (type === 'generator') {
+        icon = <Icons.zap className="h-4 w-4" />;
+        // Warna Generator: Biru ON / Merah OFF
+        if (notes.includes('turned on')) {
+            colorClass = 'text-sky-500'; 
+        } else if (notes.includes('turned off') || notes.includes('reset')) {
+            colorClass = 'text-red-600';
+        }
+    } else if (type === 'main_engine') {
+        icon = <Icons.zap className="h-4 w-4" />; // Menggunakan ikon yang sama
+        // Warna M.E: Hijau ON / Kuning-Amber OFF
+        if (notes.includes('turned on')) {
+            colorClass = 'text-green-600'; 
+        } else if (notes.includes('turned off') || notes.includes('reset')) {
+            colorClass = 'text-amber-600';
+        }
+    }
+
+    return (
+        <div className={colorClass}>
+            {icon}
+        </div>
+    );
+};
+
 
 // --- HALAMAN UTAMA ---
 export default function LogActivityPage() {
@@ -178,18 +215,6 @@ export default function LogActivityPage() {
     // --- SAFETY FILTER & LOADING CHECK ---
     const safeActivities = (activityLog || []).filter(item => item && item.type && item.timestamp);
     const safeLogbookSections = logbookSections || [];
-
-
-    const getIcon = (type: any) => {
-        switch (type) {
-            case 'engine': return <Icons.file className="h-4 w-4 text-muted-foreground" />;
-            case 'inventory': return <Icons.archive className="h-4 w-4 text-muted-foreground" />;
-            case 'generator': 
-            case 'main_engine': 
-                return <Icons.zap className="h-4 w-4 text-muted-foreground" />; // Menggunakan ikon yang sama
-            default: return <Icons.history className="h-4 w-4 text-muted-foreground" />;
-        }
-    }
 
 
     if (activityLogLoading || logbookLoading) {
@@ -220,7 +245,8 @@ export default function LogActivityPage() {
                         return (
                             <Card key={activity.id} className="flex items-center justify-between p-3">
                                 <div className="flex items-center gap-3">
-                                    {getIcon(activity.type)}
+                                    {/* MENGGUNAKAN FUNGSI BARU */}
+                                    {getIconWithColor(activity)}
                                     <div>
                                         <p className="font-semibold text-sm">{getActivityTitle(activity)}</p>
                                         <p className="text-xs text-muted-foreground">
