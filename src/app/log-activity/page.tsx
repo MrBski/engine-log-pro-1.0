@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import * as htmlToImage from 'html-to-image';
 import { useData } from "@/hooks/use-data";
 
-
+// Warna untuk Log Preview
 const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
     'M.E Starboard': 'bg-green-600',
@@ -32,6 +32,7 @@ const sectionColors: { [key: string]: string } = {
     'Fuel Consumption': 'bg-orange-600',
 };
 
+// --- HELPER SAFE DATE (Sama dengan Dashboard) ---
 const safeToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
@@ -55,6 +56,7 @@ const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions =
     }
 }
 
+// --- KOMPONEN POPUP DETAIL LOG ---
 function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
     const { toast } = useToast();
     const printRef = useRef<HTMLDivElement>(null);
@@ -128,6 +130,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
     )
 }
 
+// --- HALAMAN UTAMA ---
 export default function LogActivityPage() {
     const { activityLog, deleteLog, logs, logbookSections, activityLogLoading, logbookLoading, fetchMoreActivityLogs, hasMoreActivityLogs } = useData();
     const { toast } = useToast();
@@ -148,7 +151,12 @@ export default function LogActivityPage() {
         setIsLoadingMore(false);
     };
 
-    const getIcon = (type: ActivityLog['type']) => {
+    // --- SAFETY FILTER ---
+    // Ini bagian penting: Membuang data yang rusak/undefined/null agar tidak CRASH
+    const safeActivities = (activityLog || []).filter(item => item && item.type && item.timestamp);
+
+    const getIcon = (type: any) => {
+        // Fallback jika tipe tidak dikenali (misal: sisa data 'main_engine')
         switch (type) {
             case 'engine': return <Icons.file className="h-4 w-4 text-muted-foreground" />;
             case 'inventory': return <Icons.archive className="h-4 w-4 text-muted-foreground" />;
@@ -158,28 +166,35 @@ export default function LogActivityPage() {
     }
 
     const getActivityTitle = (activity: ActivityLog) => {
-        switch (activity.type) {
-            case 'engine': return 'Engine Log Entry';
-            case 'inventory': return `"${activity.name}" updated`;
-            case 'generator': return activity.notes || 'Generator Action';
-            default: return 'Activity';
-        }
+        // Fallback safe
+        if (!activity) return 'Unknown Activity';
+        
+        // Handling tipe sisa ('main_engine') tanpa error
+        const type = activity.type as string; 
+
+        if (type === 'engine') return 'Engine Log Entry';
+        if (type === 'inventory') return `"${activity.name}" updated`;
+        if (type === 'generator') return activity.notes || 'Generator Action';
+        if (type === 'main_engine') return 'Main Engine (Legacy Data)'; // Menangani data sisa
+        
+        return 'System Activity';
     }
 
     return (
         <>
             <AppHeader />
             <div className="space-y-4">
-                {(activityLogLoading || logbookLoading) && activityLog.length === 0 && (
+                {(activityLogLoading || logbookLoading) && safeActivities.length === 0 && (
                      <div className="space-y-2"><Card className="p-3 h-[74px]" /><Card className="p-3 h-[74px]" /></div>
                 )}
                 
-                {!(activityLogLoading || logbookLoading) && activityLog.length === 0 && (
+                {!(activityLogLoading || logbookLoading) && safeActivities.length === 0 && (
                     <Card className="text-center p-10"><p className="text-muted-foreground">No activities.</p></Card>
                 )}
 
                 <div className="space-y-2">
-                    {activityLog.map(activity => {
+                    {safeActivities.map(activity => {
+                        // Safe access
                         const logId = activity.type === 'engine' ? activity.logId : undefined;
                         const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
 
