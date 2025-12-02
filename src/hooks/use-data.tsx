@@ -29,13 +29,22 @@ import {
 } from '@/lib/data';
 import { useToast } from './use-toast';
 
+/**
+ * @description Mengkonversi objek Firebase Timestamp menjadi objek JavaScript Date.
+ * Penting untuk menjaga konsistensi data antara Local Storage (string/Date) dan Firestore (Timestamp).
+ * @param data Data yang mungkin mengandung Timestamp.
+ * @returns Data dengan semua Timestamp dikonversi menjadi Date.
+ */
 const convertTimestamps = (data: any): any => {
     if (!data) return data;
     if (data instanceof Timestamp) return data.toDate();
+    
+    // Safety check untuk string ISO yang bisa dikonversi ke Date
     if (typeof data === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(data)) {
       const date = new Date(data);
       if (!isNaN(date.getTime())) return date;
     }
+    
     if (Array.isArray(data)) return data.map(convertTimestamps);
     if (typeof data === 'object' && data !== null) {
       const newObj: { [key: string]: any } = {};
@@ -52,11 +61,14 @@ type UploadQueueItem =
     | { type: 'update', path: string[], data: any }
     | { type: 'delete', path: string[] };
 
+/**
+ * @description Definisi interface Context yang diekspos oleh useData.
+ */
 interface DataContextType {
   settings: AppSettings | undefined;
   updateSettings: (newSettings: Partial<Omit<AppSettings, 'id'>>) => Promise<void>;
   settingsLoading: boolean;
-  
+
   logs: EngineLog[];
   addLog: (log: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => Promise<string | undefined>;
   deleteLog: (logId: string) => Promise<void>;
@@ -69,7 +81,7 @@ interface DataContextType {
   updateInventoryItem: (itemId: string, updates: Partial<InventoryItem>) => Promise<void>;
   deleteInventoryItem: (itemId: string) => Promise<void>;
   inventoryLoading: boolean;
-  
+
   activityLog: ActivityLog[];
   addActivityLog: (activity: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => Promise<void>;
   activityLogLoading: boolean;
@@ -87,22 +99,28 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-const MAIN_COLLECTION_PREFIX = 'TB.';
-const LOG_PAGE_SIZE = 50;
+// Konstanta Konfigurasi Database
+const MAIN_COLLECTION_PREFIX = 'TB.'; // Prefix untuk koleksi kapal
+const LOG_PAGE_SIZE = 50; // Batasan data untuk pagination
 
-// --- Anti-Null Local Data Fetcher ---
+/**
+ * @description Mengambil data dari Local Storage dengan safety check dan fallback.
+ */
 const getLocalData = (key: string, defaultValue: any) => {
     if (typeof window === 'undefined') return defaultValue;
     const saved = localStorage.getItem(key);
     try {
       const parsed = saved ? JSON.parse(saved) : defaultValue;
-      return parsed ?? defaultValue;
+      return parsed ?? defaultValue; // Pastikan tidak mengembalikan null jika parse gagal
     } catch (e) {
         console.error("Failed to parse local data for key:", key, e);
         return defaultValue;
     }
 };
 
+/**
+ * @description Menyimpan data ke Local Storage.
+ */
 const setLocalData = (key: string, value: any) => {
     if (typeof window === 'undefined') return;
     try {
@@ -115,14 +133,15 @@ const setLocalData = (key: string, value: any) => {
 export const DataProvider = ({ children }: { children: ReactNode }) => {
     const { user, isLoading: authLoading } = useAuth();
     const { toast } = useToast();
-    
-    // Inisialisasi state dengan aman
+
+    // --- STATE MANAGEMENT ---
     const [settings, setSettings] = useState<AppSettings | undefined>(undefined);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [logs, setLogs] = useState<EngineLog[]>([]);
     const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
     const [logbookSections, setLogbookSections] = useState<LogSection[] | undefined>(undefined);
-    
+
+    // --- LOADING STATE ---
     const [settingsLoading, setSettingsLoading] = useState(true);
     const [inventoryLoading, setInventoryLoading] = useState(true);
     const [logsLoading, setLogsLoading] = useState(true);
@@ -130,19 +149,25 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [logbookLoading, setLogbookLoading] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
 
+    // --- PAGINATION STATE ---
     const [lastLogDoc, setLastLogDoc] = useState<QueryDocumentSnapshot | null>(null);
     const [hasMoreLogs, setHasMoreLogs] = useState(true);
     const [lastActivityLogDoc, setLastActivityLogDoc] = useState<QueryDocumentSnapshot | null>(null);
     const [hasMoreActivityLogs, setHasMoreActivityLogs] = useState(true);
 
+    // --- DERIVED STATE ---
     const shipId = user?.shipId;
     const mainCollectionId = shipId ? `${MAIN_COLLECTION_PREFIX}${shipId.toUpperCase()}` : undefined;
-    
+
+    /**
+     * @description Memuat semua state data awal dari Local Storage saat startup.
+     * Penting untuk mendukung mode Offline-First.
+     */
     const loadLocalData = useCallback(() => {
         const currentShipId = user?.shipId || 'guest-user';
         const initialData = getInitialData();
-        
-        // --- DATA MERGING ---
+
+        // Menggabungkan settings yang tersimpan dengan struktur terbaru
         const savedSettings = getLocalData(`settings_${currentShipId}`, initialData.settings);
         const mergedSettings = { ...initialData.settings, ...savedSettings };
 
@@ -151,7 +176,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         setLogs(convertTimestamps(getLocalData(`logs_${currentShipId}`, initialData.logs) || []));
         setActivityLog(convertTimestamps(getLocalData(`activityLog_${currentShipId}`, initialData.activityLog) || []));
         setLogbookSections(getLocalData(`logbookSections_${currentShipId}`, initialData.logbookSections));
-        
+
+        // Menandai loading selesai
         setSettingsLoading(false);
         setInventoryLoading(false);
         setLogsLoading(false);
@@ -159,6 +185,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         setLogbookLoading(false);
     }, [user?.shipId]);
 
+    /**
+     * @description Memproses antrian upload (perubahan offline) ke Firestore menggunakan writeBatch.
+     * Dipanggil hanya ketika koneksi online dan sync dimulai.
+     */
     const processUploadQueue = async (shipId: string, mainCollectionId: string) => {
         if (!db) return;
         const queueKey = `uploadQueue_${shipId}`;
@@ -166,13 +196,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (!Array.isArray(queue) || queue.length === 0) return;
 
         toast({ title: "Syncing Offline Changes...", description: `Uploading ${queue.length} items.` });
-        
+
         const batch = writeBatch(db);
-        
+
         for (const item of queue) {
             const { type, path, data } = item;
             const docRef = doc(db, mainCollectionId, ...path);
-            
+
+            // Logika Write Batch: Set (Create/Replace), Update, atau Delete
             if (type === 'set') {
                 batch.set(docRef, data);
             } else if (type === 'update') {
@@ -181,30 +212,37 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 batch.delete(docRef);
             }
         }
-        
+
         await batch.commit();
-        setLocalData(queueKey, []); 
+        setLocalData(queueKey, []); // Bersihkan antrian setelah berhasil
         toast({ title: "Offline Changes Synced", description: "Your offline work has been saved to the server." });
     };
 
+    /**
+     * @description Mengambil data state terbaru dari Firebase.
+     * Melakukan: 1. Proses antrian upload. 2. Fetch data (settings, logs, inventory) dengan pagination awal.
+     * @param isSilent Jika true, tidak menampilkan toast notifikasi sync.
+     */
     const fetchInitialData = useCallback(async (isSilent = false) => {
+        // Cek kondisi sync (harus login, online, dan memiliki ID kapal)
         if (!user || user.uid === 'guest-user' || !db || !navigator.onLine || !mainCollectionId || !shipId) {
             if (!isSilent && navigator.onLine && user?.uid !== 'guest-user') {
                 toast({ title: "Sync Failed", description: "You are not logged in.", variant: "destructive" });
             }
             return;
         }
-        
+
         if (isSyncing) return;
         setIsSyncing(true);
         if (!isSilent) toast({ title: "Syncing...", description: "Processing offline changes and fetching server data." });
 
         try {
-            await processUploadQueue(shipId, mainCollectionId);
-            
+            await processUploadQueue(shipId, mainCollectionId); // 1. Proses antrian offline
+
             const shipDocRef = doc(db, mainCollectionId, shipId);
             let settingsSnap = await getDoc(shipDocRef);
 
+            // Jika dokumen kapal belum ada, inisialisasi dengan data default
             if (!settingsSnap.exists()) {
                 if (!isSilent) toast({ title: "New Setup", description: `Initializing database for ${shipId}.` });
                 const initialData = getInitialData();
@@ -215,39 +253,41 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 await batch.commit();
                 settingsSnap = await getDoc(shipDocRef);
             }
-            
+
             const logbookSnap = await getDoc(doc(shipDocRef, 'config', 'logbook'));
-            
+
+            // 2. Fetch data utama secara paralel (Logs dan ActivityLogs dilimit 50)
             const [inventorySnap, logsSnap, activityLogSnap] = await Promise.all([
                 getDocs(query(collection(shipDocRef, 'inventory'))),
                 getDocs(query(collection(shipDocRef, 'logs'), orderBy('timestamp', 'desc'), limit(LOG_PAGE_SIZE))),
                 getDocs(query(collection(shipDocRef, 'activityLog'), orderBy('timestamp', 'desc'), limit(LOG_PAGE_SIZE))),
             ]);
 
-            // --- MERGE REMOTE DATA ---
+            // --- Update Settings ---
             const remoteSettingsData = settingsSnap.exists() ? settingsSnap.data() : getInitialData().settings;
             const finalRemoteSettings = { ...getInitialData().settings, ...remoteSettingsData };
             const convertedSettings = convertTimestamps(finalRemoteSettings);
-            
             setSettings(convertedSettings);
             setLocalData(`settings_${shipId}`, convertedSettings);
-            
+
+            // --- Update Logbook Sections ---
             const remoteLogbook = logbookSnap.exists() ? logbookSnap.data().sections : getInitialData().logbookSections;
             setLogbookSections(remoteLogbook);
             setLocalData(`logbookSections_${shipId}`, remoteLogbook);
 
+            // --- Update Inventory (ambil semua data inventaris) ---
             const remoteInventory = inventorySnap.docs.map(d => ({ id: d.id, ...d.data() })) as InventoryItem[];
             setInventory(remoteInventory);
             setLocalData(`inventory_${shipId}`, remoteInventory);
 
-            // LOGS
+            // --- Update Logs (Pagination Initial Load) ---
             const remoteLogs = logsSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
             setLogs(remoteLogs); 
             setLocalData(`logs_${shipId}`, remoteLogs);
             setLastLogDoc(logsSnap.docs[logsSnap.docs.length - 1]);
             setHasMoreLogs(logsSnap.docs.length === LOG_PAGE_SIZE);
 
-            // ACTIVITY LOGS
+            // --- Update Activity Logs (Pagination Initial Load) ---
             const remoteActivityLog = activityLogSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
             setActivityLog(remoteActivityLog); 
             setLocalData(`activityLog_${shipId}`, remoteActivityLog);
@@ -271,22 +311,31 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const syncWithFirebase = fetchInitialData;
 
+    /**
+     * @description Fetch 50 Activity Logs selanjutnya untuk pagination.
+     * Menggunakan startAfter(lastActivityLogDoc) untuk efisiensi Firestore.
+     */
     const fetchMoreActivityLogs = async () => {
         if (!mainCollectionId || !shipId || !db || !lastActivityLogDoc || !hasMoreActivityLogs) return;
         setActivityLogLoading(true);
 
         try {
-            const q = query(collection(db, mainCollectionId, shipId, 'activityLog'), orderBy('timestamp', 'desc'), startAfter(lastActivityLogDoc), limit(LOG_PAGE_SIZE));
+            const q = query(
+                collection(db, mainCollectionId, shipId, 'activityLog'), 
+                orderBy('timestamp', 'desc'), 
+                startAfter(lastActivityLogDoc), 
+                limit(LOG_PAGE_SIZE)
+            );
             const activityLogSnap = await getDocs(q);
 
             const newActivityLogs = activityLogSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as ActivityLog[];
-            
+
             setActivityLog(prev => {
                 const updated = [...prev, ...newActivityLogs];
-                setLocalData(`activityLog_${shipId}`, updated);
+                setLocalData(`activityLog_${shipId}`, updated); // Update Local Storage
                 return updated;
             });
-            
+
             setLastActivityLogDoc(activityLogSnap.docs[activityLogSnap.docs.length - 1]);
             setHasMoreActivityLogs(activityLogSnap.docs.length === LOG_PAGE_SIZE);
 
@@ -297,20 +346,28 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
              setActivityLogLoading(false);
         }
     };
-    
+
+    /**
+     * @description Fetch 50 Engine Logs selanjutnya untuk pagination.
+     */
     const fetchMoreLogs = async () => {
         if (!mainCollectionId || !shipId || !db || !lastLogDoc || !hasMoreLogs) return;
         setLogsLoading(true);
 
         try {
-            const q = query(collection(db, mainCollectionId, shipId, 'logs'), orderBy('timestamp', 'desc'), startAfter(lastLogDoc), limit(LOG_PAGE_SIZE));
+            const q = query(
+                collection(db, mainCollectionId, shipId, 'logs'), 
+                orderBy('timestamp', 'desc'), 
+                startAfter(lastLogDoc), 
+                limit(LOG_PAGE_SIZE)
+            );
             const logsSnap = await getDocs(q);
 
             const newLogs = logsSnap.docs.map(d => convertTimestamps({ id: d.id, ...d.data() })) as EngineLog[];
-            
+
             setLogs(prev => {
                 const updated = [...prev, ...newLogs];
-                setLocalData(`logs_${shipId}`, updated);
+                setLocalData(`logs_${shipId}`, updated); // Update Local Storage
                 return updated;
             });
             setLastLogDoc(logsSnap.docs[logsSnap.docs.length - 1]);
@@ -325,33 +382,44 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
 
 
+    // --- EFFECT: Load Local Data saat komponen mount ---
     useEffect(() => {
         loadLocalData();
     }, [loadLocalData]);
 
+    // --- EFFECT: Auto Sync saat user login atau setiap 15 menit ---
     useEffect(() => {
         if (user && user.uid !== 'guest-user' && !isSyncing) {
             fetchInitialData(true);
-            const interval = setInterval(() => fetchInitialData(true), 15 * 60 * 1000);
+            const interval = setInterval(() => fetchInitialData(true), 15 * 60 * 1000); // 15 menit
             return () => clearInterval(interval);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.uid]);
 
-
+    /**
+     * @description Handler generik untuk operasi tulis (Create/Update/Delete).
+     * Melakukan: 1. Update lokal segera. 2. Coba tulis ke Firebase. 3. Jika gagal/offline, simpan ke antrian.
+     * @param updateLocalState Fungsi untuk memperbarui state React dan Local Storage.
+     * @param firebaseWriteFn Fungsi Promise untuk menulis ke Firestore.
+     * @param uploadQueueItem Objek yang akan dimasukkan ke antrian jika gagal.
+     */
     const performWrite = async (
         updateLocalState: () => void,
         firebaseWriteFn?: () => Promise<any>,
         uploadQueueItem?: UploadQueueItem
     ) => {
+        // 1. Update state lokal segera (Offline-First UX)
         updateLocalState(); 
 
         if (user?.uid === 'guest-user' || !shipId) return;
-        
+
         if (navigator.onLine && firebaseWriteFn) {
+            // 2. Jika online, coba tulis ke Firebase
             try {
                 await firebaseWriteFn();
             } catch (error: any) {
+                // 3. Jika Firebase GAGAL, masukkan ke antrian upload
                 toast({ title: "Write Failed", description: "Could not save to server. Change queued for next sync.", variant: 'destructive'});
                 if (uploadQueueItem) {
                     const queueKey = `uploadQueue_${shipId}`;
@@ -360,15 +428,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 }
             }
         } else if (uploadQueueItem) {
+            // 4. Jika offline total, masukkan ke antrian
             const queueKey = `uploadQueue_${shipId}`;
             const queue = getLocalData(queueKey, []);
             setLocalData(queueKey, [...(Array.isArray(queue) ? queue : []), uploadQueueItem]);
             toast({ title: "Offline", description: "Change saved locally and will sync when online." });
         }
     };
-    
-    // --- Mutators ---
 
+    // --- MUTATORS (Fungsi Tulis Data) ---
+
+    /**
+     * @description Memperbarui App Settings (misalnya runningHours, status M.E/Generator).
+     */
     const updateSettings = async (newSettings: Partial<AppSettings>) => {
         if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
@@ -383,14 +455,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await performWrite(updateFn, firebaseFn, queueItem);
     };
 
+    /**
+     * @description Menambahkan Engine Log baru ke koleksi 'logs'.
+     * Log baru ditambahkan di awal array (DESC order) untuk optimasi dashboard.
+     */
     const addLog = async (logData: Omit<EngineLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         if (!shipId || !mainCollectionId) return;
         const newLogId = `log_${Date.now()}`;
         const newLog = { ...logData, id: newLogId, timestamp: logData.timestamp.toISOString() };
-        
+
         const updateFn = () => {
             setLogs(prev => {
-                // FIXED: Log baru ditambahkan di depan (Optimasi Performa)
                 const updated = [convertTimestamps(newLog), ...prev];
                 setLocalData(`logs_${shipId}`, updated);
                 return updated;
@@ -403,13 +478,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await performWrite(updateFn, firebaseFn, queueItem);
         return newLogId;
     };
-    
-    // --- FUNGSI BARU UNTUK CASCADING DELETE (Private helper) ---
+
+    /**
+     * @description Private helper untuk menghapus Activity Log berdasarkan logId EngineLog yang dirujuk.
+     * Dipanggil oleh deleteLog untuk cascading delete.
+     */
     const deleteActivityLogByLogId = async (logId: string) => {
         if (!shipId || !mainCollectionId) return;
-        
+
         // Cari Activity Log yang merujuk logId ini secara lokal
-        const activity = activityLog.find(a => a.logId === logId);
+        const activity = activityLog.find(a => 'logId' in a && a.logId === logId); // Safety check 'logId' in a
         if (!activity) return; 
 
         const activityId = activity.id;
@@ -421,20 +499,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 return updated;
             });
         };
-        
-        // Hapus dari Firestore
+
         const firebaseFn = () => deleteDoc(doc(db, mainCollectionId, shipId, 'activityLog', activityId));
         const queueItem: UploadQueueItem = { type: 'delete', path: [shipId, 'activityLog', activityId] };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
-    
-    // --- FUNGSI UTAMA DELETE LOG (Sekarang termasuk Casading Delete) ---
+
+    /**
+     * @description Menghapus Engine Log utama dan Activity Log yang terkait (Cascading Delete).
+     */
     const deleteLog = async (logId: string) => {
         if (!shipId || !mainCollectionId) return;
-        
+
         // 1. Lakukan Casacading Delete pada Activity Log terkait
         await deleteActivityLogByLogId(logId);
-        
+
         // 2. Hapus Log Mesin
         const updateFn = () => {
             setLogs(prev => {
@@ -448,13 +527,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await performWrite(updateFn, firebaseFn, queueItem);
     };
 
+    /**
+     * @description Menambahkan item Inventory baru.
+     */
     const addInventoryItem = async (itemData: Omit<InventoryItem, 'id'>) => {
         if (!shipId || !mainCollectionId) return;
         const newItemId = `inv_${Date.now()}`;
         const newItem = { ...itemData, id: newItemId };
-        
+
         const updateFn = () => {
             setInventory(prev => {
+                // Sorting inventaris berdasarkan nama item
                 const updated = [...prev, newItem].sort((a,b) => a.name.localeCompare(b.name));
                 setLocalData(`inventory_${shipId}`, updated);
                 return updated;
@@ -466,6 +549,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await performWrite(updateFn, firebaseFn, queueItem);
     };
 
+    /**
+     * @description Memperbarui detail atau stok item Inventory yang sudah ada.
+     */
     const updateInventoryItem = async (itemId: string, updates: Partial<InventoryItem>) => {
         if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
@@ -480,7 +566,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const queueItem: UploadQueueItem = { type: 'update', path: [shipId, 'inventory', itemId], data: firebaseData };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
-    
+
+    /**
+     * @description Menghapus item Inventory.
+     */
     const deleteInventoryItem = async (itemId: string) => {
         if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
@@ -495,6 +584,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await performWrite(updateFn, firebaseFn, queueItem);
     };
 
+    /**
+     * @description Menambahkan Activity Log (digunakan untuk M.E/Generator toggle, Inventory actions, dll).
+     */
     const addActivityLog = async (activityData: Omit<ActivityLog, 'id' | 'timestamp'> & { timestamp: Date }) => {
         if (!shipId || !mainCollectionId) return;
         const newActivityId = `act_${Date.now()}`;
@@ -502,19 +594,22 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
         const updateFn = () => {
             setActivityLog(prev => {
-                // FIXED: Activity Log baru ditambahkan di depan (Optimasi Performa)
+                // Activity Log baru ditambahkan di depan (DESC order)
                 const updated = [convertTimestamps(newActivity), ...prev];
                 setLocalData(`activityLog_${shipId}`, updated);
                 return updated;
             });
         };
-        
+
         const firebaseData = { ...activityData, timestamp: Timestamp.fromDate(activityData.timestamp) };
         const firebaseFn = () => setDoc(doc(db, mainCollectionId, shipId, 'activityLog', newActivityId), firebaseData);
         const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'activityLog', newActivityId], data: firebaseData };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
-    
+
+    /**
+     * @description Memperbarui struktur Logbook Sections (untuk konfigurasi halaman Input Data).
+     */
     const updateLogbookSections = async (sections: LogSection[]) => {
         if (!shipId || !mainCollectionId) return;
         const updateFn = () => {
@@ -526,7 +621,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const queueItem: UploadQueueItem = { type: 'set', path: [shipId, 'config', 'logbook'], data: firebaseData };
         await performWrite(updateFn, firebaseFn, queueItem);
     };
-    
+
+
     const loading = authLoading || settingsLoading || inventoryLoading || logsLoading || activityLogLoading || logbookLoading;
 
     const data: DataContextType = {
