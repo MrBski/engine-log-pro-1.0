@@ -1,35 +1,54 @@
 import type { Timestamp } from 'firebase/firestore';
 
+/**
+ * @description Type dasar untuk satu kolom/field input dalam Logbook Section (Configuration).
+ */
 export type Reading = {
-  id: string;
-  key: string;
-  unit: string;
-  value?: string;
+  id: string; // ID unik untuk identifikasi di form
+  key: string; // Label yang dilihat pengguna (e.g., 'RPM', 'L.O. PRESS')
+  unit: string; // Satuan (e.g., 'rpm', 'bar', '°C')
+  value?: string; // Nilai input (hanya digunakan di sisi form/hook)
 };
 
+/**
+ * @description Type untuk satu bagian (Section) dalam Logbook (Configuration).
+ */
 export type LogSection = {
   id: string;
-  title: string;
-  readings: Reading[];
+  title: string; // Judul bagian (e.g., 'M.E Port Side', 'Generator')
+  readings: Reading[]; // Daftar field yang ada di bagian ini
 };
 
+/**
+ * @description Type yang tersimpan dalam array EngineLog.readings.
+ * Merupakan data hasil flattening dari LogSection.
+ */
 export type EngineReading = {
-  id:string;
-  key: string; 
-  value: string;
+  id:string; // ID reading
+  key: string; // Key lengkap (e.g., 'M.E Port Side - RPM')
+  value: string; // Nilai yang dimasukkan
   unit: string;
 };
 
+/**
+ * @description Type utama untuk satu entri Log Mesin yang tersimpan di Firestore.
+ */
 export type EngineLog = {
   id: string;
   timestamp: Date | Timestamp;
   officer: string; 
   readings: EngineReading[];
-  notes: string;
+  notes: string; // Catatan kondisi/observasi
 };
 
+/**
+ * @description Kategori yang digunakan untuk Inventory dan Activity Log.
+ */
 export type InventoryCategory = 'main-engine' | 'generator' | 'other';
 
+/**
+ * @description Type untuk item stok dalam Inventory.
+ */
 export type InventoryItem = {
   id: string;
   name: string;
@@ -39,14 +58,48 @@ export type InventoryItem = {
   lowStockThreshold: number;
 };
 
-// HAPUS type 'main_engine' (Tidak diperlukan jika kita menggunakan type 'engine' atau 'generator')
+/**
+ * @description Type union untuk semua jenis Activity Log.
+ * Melacak aksi non-log (toggle, inventory changes).
+ */
 export type ActivityLog = 
-  | { type: 'engine', logId: string, officer: string, id: string; timestamp: Date | Timestamp, name: string, category: InventoryCategory }
-  | { type: 'inventory'; notes: string; name: string; officer: string; category: InventoryCategory; id: string; timestamp: Date | Timestamp }
-  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }
-  | { type: 'main_engine'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }; // Ditambahkan agar M.E toggle memiliki type ActivityLog sendiri
+  | { 
+      type: 'engine', // Log Mesin (untuk view/delete)
+      logId: string, // ID EngineLog yang dirujuk
+      officer: string, 
+      id: string; 
+      timestamp: Date | Timestamp, 
+      name: string, 
+      category: InventoryCategory 
+    }
+  | { 
+      type: 'inventory'; // Aksi Inventory (Add/Use/Delete)
+      notes: string; // Detail aksi (e.g., "Used 5 L")
+      name: string; // Nama item
+      officer: string; 
+      category: InventoryCategory; 
+      id: string; 
+      timestamp: Date | Timestamp 
+    }
+  | { 
+      type: 'generator'; // Toggle Generator
+      notes: string; 
+      officer: string; 
+      id: string; 
+      timestamp: Date | Timestamp 
+    }
+  | { 
+      type: 'main_engine'; // Toggle Main Engine (M.E)
+      notes: string; 
+      officer: string; 
+      id: string; 
+      timestamp: Date | Timestamp 
+    }; 
 
 
+/**
+ * @description Type untuk Settings aplikasi yang disimpan per kapal.
+ */
 export type AppSettings = {
   shipName: string;
   officers: string[];
@@ -58,13 +111,16 @@ export type AppSettings = {
   generatorStartTime: number | null;
   generatorLastReset: Date | Timestamp | null;
 
-  // === FITUR BARU: MAIN ENGINE STATUS ===
+  // Fitur Main Engine (M.E) Status
   mainEngineRunningHours: number; // Jam M.E yang sudah berjalan di timer
   mainEngineStatus: 'on' | 'off';
   mainEngineStartTime: number | null;
   mainEngineLastReset: Date | Timestamp | null;
 };
 
+/**
+ * @description Type untuk struktur data lengkap yang disimpan per kapal.
+ */
 export type AppData = {
   settings: AppSettings;
   inventory: InventoryItem[];
@@ -73,6 +129,9 @@ export type AppData = {
   logbookSections: LogSection[];
 };
 
+/**
+ * @description Menyediakan data inisialisasi default (fallback) untuk kapal baru atau user Guest.
+ */
 export const getInitialData = (): AppData => ({
   settings: {
     shipName: 'Engine log pro',
@@ -84,7 +143,6 @@ export const getInitialData = (): AppData => ({
     generatorStartTime: null,
     generatorLastReset: null,
 
-    // === INITIAL DATA M.E ===
     mainEngineRunningHours: 0,
     mainEngineStatus: 'off' as 'on' | 'off',
     mainEngineStartTime: null,
@@ -93,6 +151,7 @@ export const getInitialData = (): AppData => ({
   inventory: [] as InventoryItem[],
   logs: [] as EngineLog[],
   activityLog: [] as ActivityLog[],
+  // Struktur default Logbook Sections untuk input data
   logbookSections: [
     {
       id: 'section-1',
@@ -164,7 +223,7 @@ export const getInitialData = (): AppData => ({
         title: 'Others',
         readings: [
             { id: 'other_rob', key: 'RoB', unit: 'L' },
-            { id: 'other_used', key: 'USED 4 Hours', unit: 'L' },
+            { id: 'other_used', key: 'USED 4 Hours', unit: 'L' }, // Field calculated secara otomatis
         ]
     }
   ] as LogSection[],
