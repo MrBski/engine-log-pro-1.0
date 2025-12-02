@@ -1,4 +1,3 @@
-// Salin dan tempel kode ini ke src/app/log-activity/page.tsx Anda
 "use client";
 
 import { useState, useCallback, useRef } from "react";
@@ -22,7 +21,11 @@ import { cn } from '@/lib/utils';
 import * as htmlToImage from 'html-to-image';
 import { useData } from '@/hooks/use-data';
 
-// Warna untuk Log Preview (Hanya untuk referensi, tidak berubah)
+// --- HELPER CONSTANTS & FUNCTIONS (REKOMENDASI: Pindahkan ke src/lib/constants.ts dan src/lib/utils.ts) ---
+
+/**
+ * @description Warna latar belakang untuk section Log Preview.
+ */
 const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
     'M.E Starboard': 'bg-green-600',
@@ -33,7 +36,9 @@ const sectionColors: { [key: string]: string } = {
     'Fuel Consumption': 'bg-orange-600',
 };
 
-// --- HELPER SAFE DATE ---
+/**
+ * @description Mengkonversi timestamp ke objek Date yang aman.
+ */
 const safeToDate = (timestamp: any): Date | null => {
     if (!timestamp) return null;
     if (timestamp instanceof Date) return timestamp;
@@ -48,6 +53,9 @@ const safeToDate = (timestamp: any): Date | null => {
     return null;
 };
 
+/**
+ * @description Memformat objek Date yang aman ke string lokal.
+ */
 const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions = {}): string => {
     if (!date) return '...';
     try {
@@ -57,24 +65,33 @@ const formatSafeDate = (date: Date | null, options: Intl.DateTimeFormatOptions =
     }
 }
 
-// --- KOMPONEN POPUP DETAIL LOG (Tidak diubah) ---
+// --- KOMPONEN POPUP DETAIL LOG (LOGIC SHARE & PRINT) ---
+/**
+ * @description Komponen Modal untuk menampilkan detail Engine Log dan opsi Share/Print (PNG).
+ */
 function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, logbookSections: LogSection[] }) {
     const { toast } = useToast();
     const printRef = useRef<HTMLDivElement>(null);
     const logTimestamp = safeToDate(log?.timestamp);
 
+    /**
+     * @description Menangani konversi konten log ke PNG dan memicu fungsi Share native.
+     */
     const handleShare = useCallback(async () => {
         if (!printRef.current) return;
         try {
+            // Konversi div ke PNG
             const dataUrl = await htmlToImage.toPng(printRef.current, {
                 quality: 0.95, backgroundColor: 'hsl(var(--background))', skipAutoScale: false, pixelRatio: 2
             });
             const blob = await (await fetch(dataUrl)).blob();
             const file = new File([blob], `engine-log-${log?.id}.png`, { type: blob.type });
 
+            // Coba gunakan Web Share API
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 await navigator.share({ files: [file], title: 'Engine Log' });
             } else {
+                // Fallback: Download file
                 const link = document.createElement('a');
                 link.download = `engine-log-${log?.id}.png`;
                 link.href = dataUrl;
@@ -87,10 +104,13 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
 
     if (!log || logbookSections.length === 0) return null; 
 
+    // Filter readings yang hanya ada di log ini
     const getReadingsForSection = (title: string) => log.readings.filter(r => r.key.startsWith(title));
+    
+    // Merekonstruksi struktur section log berdasarkan logbookSections yang dikonfigurasi
     const sections = (logbookSections || []).map(s => ({
         ...s, readings: getReadingsForSection(s.title)
-    })).filter(s => s.readings.length > 0 && s.readings.some(r => r.value));
+    })).filter(s => s.readings.length > 0 && s.readings.some(r => r.value)); // Hanya tampilkan section yang ada datanya
 
     const renderReading = (reading: EngineReading) => (
         <div key={reading.id} className="flex items-center border-b border-white/5 py-0.5">
@@ -102,11 +122,14 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
     return (
         <DialogContent className="max-w-3xl">
             <DialogHeader><DialogTitle>Engine Log Preview</DialogTitle></DialogHeader>
+            {/* Area yang akan di-print/share */}
             <div className="max-h-[80vh] overflow-y-auto p-1">
                 <div ref={printRef} className="space-y-1 bg-card p-1 rounded-lg text-sm">
+                    {/* Timestamp */}
                     <div className="font-bold text-center text-sm h-8 flex items-center justify-center bg-muted/50 rounded-md">
                         {formatSafeDate(logTimestamp, { dateStyle: 'full', timeStyle: 'short' })}
                     </div>
+                    {/* Grid Section Reading */}
                     <div className="grid md:grid-cols-2 gap-1">
                         {sections.map(section => (
                             <div key={section.title} className="space-y-0.5 p-1 border border-muted-foreground/50 rounded-sm">
@@ -117,6 +140,7 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
                             </div>
                         ))}
                     </div>
+                    {/* Officer dan Notes */}
                     <div className="space-y-1 pt-1">
                         <div className="h-6 text-center font-semibold flex items-center justify-center rounded-md bg-accent text-accent-foreground text-sm">{log.officer}</div>
                         <div className="text-center font-bold p-2 rounded-md bg-muted min-h-[30px] flex items-center justify-center text-xs mt-1">{log.notes}</div>
@@ -131,33 +155,40 @@ function LogEntryCard({ log, logbookSections }: { log: EngineLog | undefined, lo
     )
 }
 
-// --- LOGIC JUDUL AKTIVITAS (DIPERLENGKAPI DENGAN INVENTORY) ---
+// --- LOGIC JUDUL AKTIVITAS ---
+/**
+ * @description Menentukan judul yang deskriptif berdasarkan tipe Activity Log.
+ */
 const getActivityTitle = (activity: ActivityLog) => {
     if (!activity) return 'Unknown Activity';
-    
+
     const type = activity.type as string; 
 
     if (type === 'engine') return 'Engine Log Entry';
-    
-    // Inventory
+
+    // Inventory Log: "Nama Item [aksi]"
     if (type === 'inventory') {
+        // notes: "Used 5 L" atau "Added 10 pcs"
         return `${activity.name || 'Inventory Item'} ${activity.notes || 'updated'}`;
     }
 
-    // Toggle Log (Generator / Main Engine)
+    // Toggle Log (notes berisi "turned ON/OFF" atau "RHS Reset")
     if (type === 'generator' || type === 'main_engine') {
         return activity.notes || `${type === 'main_engine' ? 'Main Engine' : 'Generator'} Action`; 
     }
-    
+
     return 'System Activity';
 }
 
-// --- LOGIC IKON BERWARNA BARU ---
+// --- LOGIC IKON BERWARNA DINAMIS ---
+/**
+ * @description Mengembalikan ikon status (zap, file, archive) dengan warna yang sesuai
+ * berdasarkan tipe aktivitas dan status ON/OFF.
+ */
 const getIconWithColor = (activity: ActivityLog) => {
     const type = activity.type as string;
     const notes = activity.notes?.toLowerCase() || '';
 
-    // Default icon
     let icon = <Icons.history className="h-4 w-4" />;
     let colorClass = 'text-muted-foreground';
 
@@ -167,15 +198,15 @@ const getIconWithColor = (activity: ActivityLog) => {
         icon = <Icons.archive className="h-4 w-4" />;
     } else if (type === 'generator') {
         icon = <Icons.zap className="h-4 w-4" />;
-        // Warna Generator: Biru ON / Merah OFF
+        // Warna Generator: Biru (ON) / Merah (OFF/Reset)
         if (notes.includes('turned on')) {
             colorClass = 'text-sky-500'; 
         } else if (notes.includes('turned off') || notes.includes('reset')) {
             colorClass = 'text-red-600';
         }
     } else if (type === 'main_engine') {
-        icon = <Icons.zap className="h-4 w-4" />; // Menggunakan ikon yang sama
-        // Warna M.E: Hijau ON / Kuning-Amber OFF
+        icon = <Icons.zap className="h-4 w-4" />;
+        // Warna M.E: Hijau (ON) / Kuning-Amber (OFF/Reset)
         if (notes.includes('turned on')) {
             colorClass = 'text-green-600'; 
         } else if (notes.includes('turned off') || notes.includes('reset')) {
@@ -191,12 +222,15 @@ const getIconWithColor = (activity: ActivityLog) => {
 };
 
 
-// --- HALAMAN UTAMA ---
+// --- HALAMAN UTAMA LOG ACTIVITY ---
 export default function LogActivityPage() {
     const { activityLog, deleteLog, logs, logbookSections, activityLogLoading, logbookLoading, fetchMoreActivityLogs, hasMoreActivityLogs } = useData();
     const { toast } = useToast();
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+    /**
+     * @description Menghapus Engine Log, memicu Cascading Delete di use-data.ts.
+     */
     const handleDeleteLog = async (logId: string) => {
         try {
             await deleteLog(logId);
@@ -206,13 +240,16 @@ export default function LogActivityPage() {
         }
     };
 
+    /**
+     * @description Memuat lebih banyak Activity Log dari Firestore (Pagination).
+     */
     const handleLoadMore = async () => {
         setIsLoadingMore(true);
         await fetchMoreActivityLogs();
         setIsLoadingMore(false);
     };
 
-    // --- SAFETY FILTER & LOADING CHECK ---
+    // --- LOGIC DATA VIEW ---
     const safeActivities = (activityLog || []).filter(item => item && item.type && item.timestamp);
     const safeLogbookSections = logbookSections || [];
 
@@ -225,12 +262,12 @@ export default function LogActivityPage() {
              </>
          );
     }
-    
+
     return (
         <>
             <AppHeader />
             <div className="space-y-4">
-                
+
                 {safeActivities.length === 0 && (
                     <Card className="text-center p-10"><p className="text-muted-foreground">No activities.</p></Card>
                 )}
@@ -238,14 +275,15 @@ export default function LogActivityPage() {
                 <div className="space-y-2">
                     {safeActivities.map(activity => {
                         const logId = activity.type === 'engine' ? activity.logId : undefined;
+                        // Cari log mesin yang terkait dari cache logs yang sudah dimuat
                         const associatedLog = logId ? logs.find(l => l.id === logId) : undefined;
-                        
+
+                        // Tentukan apakah log ini bisa dilihat detailnya dan dihapus
                         const isDeletableEngineLog = activity.type === 'engine' && associatedLog;
 
                         return (
                             <Card key={activity.id} className="flex items-center justify-between p-3">
                                 <div className="flex items-center gap-3">
-                                    {/* MENGGUNAKAN FUNGSI BARU */}
                                     {getIconWithColor(activity)}
                                     <div>
                                         <p className="font-semibold text-sm">{getActivityTitle(activity)}</p>
@@ -257,10 +295,12 @@ export default function LogActivityPage() {
                                 <div className="flex items-center gap-1">
                                     {isDeletableEngineLog && (
                                         <>
+                                            {/* Button View Log */}
                                             <Dialog>
                                                 <DialogTrigger asChild><Button variant="ghost" size="icon"><Icons.eye className="h-4 w-4" /></Button></DialogTrigger>
                                                 <LogEntryCard log={associatedLog} logbookSections={safeLogbookSections} />
                                             </Dialog>
+                                            {/* Button Delete Log */}
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive"><Icons.trash className="h-4 w-4" /></Button></AlertDialogTrigger>
                                                 <AlertDialogContent>
@@ -276,6 +316,7 @@ export default function LogActivityPage() {
                     })}
                 </div>
 
+                {/* Tombol Load More untuk Pagination */}
                 {hasMoreActivityLogs && (
                     <Button variant="outline" className="w-full" onClick={handleLoadMore} disabled={isLoadingMore}>{isLoadingMore ? "Loading..." : "Muat Selanjutnya"}</Button>
                 )}
