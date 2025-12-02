@@ -39,23 +39,30 @@ export type InventoryItem = {
   lowStockThreshold: number;
 };
 
-// HAPUS type 'main_engine'
+// HAPUS type 'main_engine' (Tidak diperlukan jika kita menggunakan type 'engine' atau 'generator')
 export type ActivityLog = 
   | { type: 'engine', logId: string, officer: string, id: string; timestamp: Date | Timestamp, name: string, category: InventoryCategory }
   | { type: 'inventory'; notes: string; name: string; officer: string; category: InventoryCategory; id: string; timestamp: Date | Timestamp }
-  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp };
+  | { type: 'generator'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }
+  | { type: 'main_engine'; notes: string; officer: string; id: string; timestamp: Date | Timestamp }; // Ditambahkan agar M.E toggle memiliki type ActivityLog sendiri
 
 
 export type AppSettings = {
   shipName: string;
   officers: string[];
-  runningHours: number; // Hanya total jam saja
-  
-  // Fitur Generator tetap ada (karena sudah stabil sebelumnya)
+  runningHours: number; // Total Jam M.E dari Log Input (4 jam/entry)
+
+  // Fitur Generator
   generatorRunningHours: number;
   generatorStatus: 'on' | 'off';
   generatorStartTime: number | null;
   generatorLastReset: Date | Timestamp | null;
+
+  // === FITUR BARU: MAIN ENGINE STATUS ===
+  mainEngineRunningHours: number; // Jam M.E yang sudah berjalan di timer
+  mainEngineStatus: 'on' | 'off';
+  mainEngineStartTime: number | null;
+  mainEngineLastReset: Date | Timestamp | null;
 };
 
 export type AppData = {
@@ -71,11 +78,17 @@ export const getInitialData = (): AppData => ({
     shipName: 'Engine log pro',
     officers: ['Chief Engineer', '2nd Engineer', 'Oiler'],
     runningHours: 0,
-    
+
     generatorRunningHours: 0,
     generatorStatus: 'off' as 'on' | 'off',
     generatorStartTime: null,
     generatorLastReset: null,
+
+    // === INITIAL DATA M.E ===
+    mainEngineRunningHours: 0,
+    mainEngineStatus: 'off' as 'on' | 'off',
+    mainEngineStartTime: null,
+    mainEngineLastReset: null,
   },
   inventory: [] as InventoryItem[],
   logs: [] as EngineLog[],
