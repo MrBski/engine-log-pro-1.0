@@ -15,7 +15,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 
-// --- HELPERS ---
 function formatDuration(seconds: number) {
     if (isNaN(seconds)) return "00:00:00";
     const h = Math.floor(seconds / 3600);
@@ -56,6 +55,16 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
 
+  // --- SAFEGUARD VARIABLES (PENTING!) ---
+  // Pastikan variabel ini punya nilai default, jangan biarkan undefined masuk ke logic timer
+  const meStatus = settings?.mainEngineStatus || 'off';
+  const genStatus = settings?.generatorStatus || 'off';
+  const meStartTime = settings?.mainEngineStartTime;
+  const genStartTime = settings?.generatorStartTime;
+  const meLastStopped = settings?.mainEngineLastStopped ? safeToDate(settings.mainEngineLastStopped) : null;
+  const meRunningHours = settings?.runningHours || 0;
+  const genRunningHours = settings?.generatorRunningHours || 0;
+
   // --- TIMER LOGIC ---
   useEffect(() => {
     if (!settings) return;
@@ -68,36 +77,36 @@ export default function DashboardPage() {
         return totalHours * 3600;
     };
 
-    setGenElapsed(calculateSeconds(settings.generatorRunningHours || 0, settings.generatorStartTime, settings.generatorStatus));
-    setMeElapsed(calculateSeconds(settings.runningHours || 0, settings.mainEngineStartTime, settings.mainEngineStatus)); 
+    setGenElapsed(calculateSeconds(genRunningHours, genStartTime, genStatus));
+    setMeElapsed(calculateSeconds(meRunningHours, meStartTime, meStatus)); 
 
     const interval = setInterval(() => {
-        if (settings.generatorStatus === 'on' && settings.generatorStartTime) {
-            const elapsed = (Date.now() - settings.generatorStartTime) / 1000;
-            setGenElapsed(((settings.generatorRunningHours || 0) * 3600) + elapsed);
+        if (genStatus === 'on' && genStartTime) {
+            const elapsed = (Date.now() - genStartTime) / 1000;
+            setGenElapsed((genRunningHours * 3600) + elapsed);
         }
-        if (settings.mainEngineStatus === 'on' && settings.mainEngineStartTime) {
-            const elapsed = (Date.now() - settings.mainEngineStartTime) / 1000;
-            setMeElapsed(((settings.runningHours || 0) * 3600) + elapsed);
+        if (meStatus === 'on' && meStartTime) {
+            const elapsed = (Date.now() - meStartTime) / 1000;
+            setMeElapsed((meRunningHours * 3600) + elapsed);
         }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [settings]);
+  }, [settings, genRunningHours, genStartTime, genStatus, meRunningHours, meStartTime, meStatus]);
 
 
   // --- HANDLER: GENERATOR ---
   const handleGeneratorToggle = async () => {
     if (!settings || !user || !user.name) return;
-    if (settings.generatorStatus === 'on') {
+    if (genStatus === 'on') {
       const endTime = Date.now();
-      const startTime = settings.generatorStartTime || endTime;
+      const startTime = genStartTime || endTime;
       const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
       try {
         await updateSettings({
             generatorStatus: 'off',
             generatorStartTime: null,
-            generatorRunningHours: (settings.generatorRunningHours || 0) + elapsedHours,
+            generatorRunningHours: genRunningHours + elapsedHours,
         });
         await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator turned OFF', officer: user.name });
       } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed update." }); }
@@ -114,7 +123,7 @@ export default function DashboardPage() {
      try {
         await updateSettings({
             generatorRunningHours: 0,
-            generatorStartTime: settings.generatorStatus === 'on' ? Date.now() : null,
+            generatorStartTime: genStatus === 'on' ? Date.now() : null,
         });
         await addActivityLog({ type: 'generator', timestamp: new Date(), notes: 'Generator RHS Reset', officer: user.name });
         toast({ title: "Reset", description: "Generator hours reset." });
@@ -124,18 +133,17 @@ export default function DashboardPage() {
   // --- HANDLER: MAIN ENGINE ---
   const handleMEToggle = async () => {
     if (!settings || !user || !user.name) return;
-    const isMeOn = settings.mainEngineStatus === 'on';
 
-    if (isMeOn) {
+    if (meStatus === 'on') {
       const endTime = Date.now();
-      const startTime = settings.mainEngineStartTime || endTime;
+      const startTime = meStartTime || endTime;
       const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
       try {
         await updateSettings({
             mainEngineStatus: 'off',
             mainEngineStartTime: null,
-            mainEngineLastStopped: new Date(), // Simpan Last Stopped
-            runningHours: (settings.runningHours || 0) + elapsedHours,
+            mainEngineLastStopped: new Date(), 
+            runningHours: meRunningHours + elapsedHours,
         });
         await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'M.E. Stopped (FWE)', officer: user.name });
         toast({ title: "M.E. Stopped", description: "Recorded as FWE." });
@@ -194,21 +202,25 @@ export default function DashboardPage() {
     );
   }
 
-  if (!settings) return <div>Data Error</div>;
+  // --- FALLBACK JIKA SETTINGS RUSAK ---
+  if (!settings) {
+      return (
+        <>
+            <AppHeader />
+            <div className="flex h-[50vh] items-center justify-center flex-col gap-4">
+                <p className="text-muted-foreground">Initializing data...</p>
+                <Button onClick={() => window.location.reload()}>Reload Page</Button>
+            </div>
+        </>
+      )
+  }
 
-  // --- VISUAL STYLING (AMBIENT LIGHTS) ---
-  
-  // Generator: Biru dominan
-  // ON: Border Hijau + Glow Biru Kuat
-  // OFF: Border Merah + Glow Biru Redup
-  const genCardClass = settings.generatorStatus === 'on' 
+  // --- VISUAL STYLING ---
+  const genCardClass = genStatus === 'on' 
     ? "border-green-500 shadow-[0_0_20px_rgba(59,130,246,0.6)] bg-slate-950/60 transition-all duration-500" 
     : "border-red-900/50 shadow-[0_0_15px_rgba(59,130,246,0.15)] bg-slate-950/30 transition-all duration-500"; 
 
-  // Main Engine: Kuning dominan
-  // ON: Border Hijau + Glow Kuning Kuat
-  // OFF: Border Merah + Glow Kuning Redup
-  const meCardClass = settings.mainEngineStatus === 'on'
+  const meCardClass = meStatus === 'on'
     ? "border-green-500 shadow-[0_0_20px_rgba(234,179,8,0.6)] bg-slate-950/60 transition-all duration-500"
     : "border-red-900/50 shadow-[0_0_15px_rgba(234,179,8,0.15)] bg-slate-950/30 transition-all duration-500";
 
@@ -222,17 +234,15 @@ export default function DashboardPage() {
         <Card className={cn("flex flex-col p-4 justify-between", meCardClass)}>
           <div className="flex-1">
               <div className="flex items-start">
-                {/* Icon Kuning */}
-                <Icons.anchor className={cn("h-6 w-6 mr-4 transition-colors", settings.mainEngineStatus === 'on' ? "text-yellow-400 animate-pulse" : "text-muted-foreground")} />
+                <Icons.anchor className={cn("h-6 w-6 mr-4 transition-colors", meStatus === 'on' ? "text-yellow-400 animate-pulse" : "text-muted-foreground")} />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
                   <p className="text-xl font-bold">{formatDuration(meElapsed)}</p>
                   
-                  {/* Status Info */}
                   <p className="text-xs text-muted-foreground mt-1">
-                      {settings.mainEngineStatus === 'on' 
-                        ? <span className="text-green-400 font-medium">Started: {formatShortDate(safeToDate(settings.mainEngineStartTime))}</span>
-                        : <span className="text-red-400 font-medium">Stopped: {formatShortDate(safeToDate(settings.mainEngineLastStopped))}</span>
+                      {meStatus === 'on' 
+                        ? <span className="text-green-400 font-medium">Started: {formatShortDate(safeToDate(meStartTime))}</span>
+                        : <span className="text-red-400 font-medium">Stopped: {formatShortDate(meLastStopped)}</span>
                       }
                   </p>
                 </div>
@@ -241,11 +251,11 @@ export default function DashboardPage() {
           <div className="flex justify-end gap-2 mt-2">
                  <Button 
                     size="icon" 
-                    className={cn("h-8 w-8 transition-colors", settings.mainEngineStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700")}
+                    className={cn("h-8 w-8 transition-colors", meStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700")}
                     onClick={handleMEToggle}
                     disabled={!user}
                 >
-                    {settings.mainEngineStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
+                    {meStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
                 </Button>
             </div>
         </Card>
@@ -254,14 +264,12 @@ export default function DashboardPage() {
         <Card className={cn("flex flex-col p-4 justify-between", genCardClass)}>
             <div className="flex-1">
               <div className="flex items-start">
-                {/* Icon Biru */}
-                <Icons.zap className={cn("h-6 w-6 mr-4 transition-colors", settings.generatorStatus === 'on' ? "text-blue-400 animate-pulse" : "text-muted-foreground")} />
+                <Icons.zap className={cn("h-6 w-6 mr-4 transition-colors", genStatus === 'on' ? "text-blue-400 animate-pulse" : "text-muted-foreground")} />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">Generator RHS</p>
                    <p className="text-xl font-bold">{formatDuration(genElapsed)}</p>
-                   {/* Status Info */}
                    <p className="text-xs text-muted-foreground mt-1">
-                      {settings.generatorStatus === 'on' 
+                      {genStatus === 'on' 
                         ? <span className="text-green-400 font-medium">On Duty</span>
                         : <span className="text-muted-foreground">Standby</span>
                       }
@@ -284,11 +292,11 @@ export default function DashboardPage() {
                 </AlertDialog>
                 <Button 
                     size="icon" 
-                    className={cn("h-8 w-8 transition-colors", settings?.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700")}
+                    className={cn("h-8 w-8 transition-colors", genStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700")}
                     onClick={handleGeneratorToggle}
                     disabled={!user}
                 >
-                    {settings?.generatorStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
+                    {genStatus === 'on' ? <Icons.powerOff /> : <Icons.power />}
                 </Button>
             </div>
         </Card>
@@ -312,7 +320,6 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* --- CHART SECTION (UNCHANGED) --- */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
