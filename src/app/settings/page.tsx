@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useForm } from 'react-hook-form';
@@ -31,42 +30,62 @@ import { useAuth } from '@/hooks/use-auth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 
+// --- 1. SKEMA VALIDASI (ZOD) ---
+
+// Skema untuk formulir Pengaturan Kapal (Membutuhkan PIN)
 const settingsSchema = z.object({
   shipName: z.string().min(1, 'Ship name is required.'),
   runningHours: z.coerce.number().min(0, 'Running hours cannot be negative.'),
   generatorRunningHours: z.coerce.number().min(0, 'Running hours cannot be negative.'),
 });
 
+// Skema untuk memperbarui nama/posisi officer
 const officerNameSchema = z.object({
   name: z.string().min(1, 'Officer name is required.'),
 });
 
-
+// Skema untuk formulir Login
 const loginSchema = z.object({
   email: z.string().email('Invalid email address.'),
   password: z.string().min(1, 'Password is required'),
 });
 
+// --- 2. KONSTANTA KRITIS (REKOMENDASI: Pindahkan ke src/lib/constants.ts) ---
 const HARDCODED_PIN = "1234";
+
+// --- KOMPONEN UTAMA SETTINGS ---
 
 export default function SettingsPage() {
   const { settings, updateSettings, settingsLoading } = useData();
   const { user, login, logout, updateUserName } = useAuth();
   const { toast } = useToast();
-  
+
+  // --- STATE MODAL PIN & DATA TERTUNDA ---
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
   const [pendingSettings, setPendingSettings] = useState<z.infer<typeof settingsSchema> | null>(null);
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
 
+  // Instance Form: Settings Ship Details
   const settingsForm = useForm<z.infer<typeof settingsSchema>>({
     resolver: zodResolver(settingsSchema),
   });
 
+  // Instance Form: Officer Name
   const officerNameForm = useForm<z.infer<typeof officerNameSchema>>({
     resolver: zodResolver(officerNameSchema),
   });
-  
+
+  // Instance Form: Login
+  const loginForm = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  // --- EFFECT: INILISASI FORM ---
+  /**
+   * @description Memuat data settings dan user ke dalam formulir saat data tersedia.
+   */
   useEffect(() => {
     if(settings) {
         settingsForm.reset({
@@ -80,19 +99,25 @@ export default function SettingsPage() {
     }
   }, [settings, user, settingsForm, officerNameForm]);
 
-  const loginForm = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
-  });
 
+  // --- 3. MUTATOR HANDLERS ---
+
+  /**
+   * @description Menangani submit Pengaturan Kapal (membutuhkan PIN).
+   * Menyimpan data form sementara ke state pendingSettings dan membuka modal PIN.
+   */
   const handleSettingsSubmit = (values: z.infer<typeof settingsSchema>) => {
-    setPendingSettings(values);
-    setIsPinDialogOpen(true);
+    setPendingSettings(values); // Simpan data yang akan di-update
+    setIsPinDialogOpen(true);   // Buka modal PIN
     setPin('');
     setPinError('');
   };
 
+  /**
+   * @description Memverifikasi PIN dan melakukan update AppSettings jika PIN benar.
+   */
   const handlePinConfirm = async () => {
+    // 1. PIN Check
     if (pin !== HARDCODED_PIN) {
         setPinError('Incorrect PIN. Please try again.');
         return;
@@ -100,6 +125,7 @@ export default function SettingsPage() {
 
     if (!pendingSettings) return;
 
+    // 2. Eksekusi Update Settings
     try {
       await updateSettings(pendingSettings);
       toast({ title: 'Success', description: 'Settings updated.' });
@@ -110,16 +136,21 @@ export default function SettingsPage() {
     }
   };
 
-
+  /**
+   * @description Memperbarui nama/posisi officer di Firebase Auth Profile.
+   */
   const handleOfficerNameSubmit = async (values: z.infer<typeof officerNameSchema>) => {
     try {
-        await updateUserName(values.name);
+        await updateUserName(values.name); // Memanggil update dari useAuth
         toast({ title: "Officer Name Updated", description: `Your name is now set to "${values.name}".`});
     } catch(e: any) {
         toast({ variant: 'destructive', title: 'Error', description: e.message || 'Failed to update your name.' });
     }
   };
 
+  /**
+   * @description Menangani proses Login user.
+   */
   const handleLogin = async (values: z.infer<typeof loginSchema>) => {
     try {
       await login(values.email, values.password);
@@ -133,6 +164,8 @@ export default function SettingsPage() {
       });
     }
   };
+
+  // --- 4. LOGIC DATA VIEW ---
 
   if (settingsLoading) {
       return (
@@ -150,6 +183,7 @@ export default function SettingsPage() {
       <AppHeader />
       <div className="grid gap-6 md:grid-cols-2">
 
+        {/* --- CARD 1: ACCOUNT & SYNC --- */}
         <Card>
           <CardHeader>
             <CardTitle>Account & Sync</CardTitle>
@@ -158,6 +192,7 @@ export default function SettingsPage() {
           <CardContent>
             {isLoggedIn ? (
               <div className="space-y-4">
+                {/* Form Update Officer Name */}
                  <Form {...officerNameForm}>
                     <form onSubmit={officerNameForm.handleSubmit(handleOfficerNameSubmit)} className="space-y-4">
                         <FormField
@@ -174,7 +209,7 @@ export default function SettingsPage() {
                         <Button type="submit" size="sm">Set Name</Button>
                     </form>
                 </Form>
-                
+
                 <Separator className="my-6" />
 
                 <div className="space-y-2">
@@ -187,6 +222,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             ) : (
+              // Form Login
               <Form {...loginForm}>
                 <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
                   <FormField control={loginForm.control} name="email" render={({ field }) => (
@@ -204,6 +240,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* --- CARD 2: SHIP DETAILS (Requires PIN) --- */}
         {settings && (
           <Card>
             <CardHeader>
@@ -255,6 +292,7 @@ export default function SettingsPage() {
           </Card>
         )}
 
+         {/* --- CARD 3: LOGBOOK CONFIGURATION LINK --- */}
          <Card className="md:col-span-2">
             <CardHeader>
                 <CardTitle>Logbook Configuration</CardTitle>
@@ -271,6 +309,7 @@ export default function SettingsPage() {
          </Card>
       </div>
 
+       {/* Modal: PIN Confirmation for Settings Update */}
        <Dialog open={isPinDialogOpen} onOpenChange={setIsPinDialogOpen}>
         <DialogContent>
           <DialogHeader>
