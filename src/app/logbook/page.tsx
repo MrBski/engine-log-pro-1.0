@@ -1,4 +1,3 @@
-
 "use client";
 
 import { KeyboardEvent, useEffect, useMemo } from 'react';
@@ -52,7 +51,7 @@ export default function LogbookPage() {
   const { addLog, addActivityLog, settings, updateSettings, logbookSections = [], settingsLoading, logbookLoading } = useData();
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const formReady = !settingsLoading && !logbookLoading;
 
   const form = useForm<LogFormData>({
@@ -74,7 +73,7 @@ export default function LogbookPage() {
     logbookSections.forEach((section, sectionIdx) => {
         let readingIdx = section.readings.findIndex(r => r.id === 'onduty_before');
         if (readingIdx !== -1) { onDutySIdx = sectionIdx; onDutyRIdx = readingIdx; }
-        
+
         readingIdx = section.readings.findIndex(r => r.id === 'daily_before');
         if (readingIdx !== -1) { dailySIdx = sectionIdx; dailyRIdx = readingIdx; }
 
@@ -111,15 +110,23 @@ export default function LogbookPage() {
 
   useEffect(() => {
     if (used4HoursSectionIndex === undefined || used4HoursReadingIndex === undefined || !formReady) return;
-    
+
     const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
     const dailyTankAfter = parseFloat(dailyTankAfterValue || '0');
-    
+
     if (!isNaN(onDutyBefore) && !isNaN(dailyTankAfter) && onDutyBefore > 0 && dailyTankAfter > 0) {
-        const used4Hours = Math.round((onDutyBefore - dailyTankAfter));
+        
+        const rawUsed4Hours = onDutyBefore - dailyTankAfter;
+        
+        // --- PERUBAHAN KRITIS: Menggunakan Math.round untuk pembulatan operasional ---
+        // Math.round() membulatkan 0.5 ke atas (Misal: 4.5 -> 5, 4.4 -> 4)
+        const used4Hours = Math.round(rawUsed4Hours);
+        const used4HoursString = used4Hours > 0 ? used4Hours.toString() : '0';
+
         const currentVal = form.getValues(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`);
-        if (currentVal !== used4Hours.toString()) {
-            form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4Hours.toString(), { shouldValidate: true, shouldDirty: true });
+        
+        if (currentVal !== used4HoursString) {
+            form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4HoursString, { shouldValidate: true, shouldDirty: true });
         }
     } else {
         const currentVal = form.getValues(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`);
@@ -136,7 +143,7 @@ export default function LogbookPage() {
       toast({ variant: 'destructive', title: "Error", description: "You must be logged in to save a log." });
       return;
     }
-    
+
     const newLogData = {
       timestamp: new Date(values.timestamp),
       officer: user.name,
@@ -169,7 +176,7 @@ export default function LogbookPage() {
         }
 
         toast({ title: "Success", description: "New engine log has been recorded." });
-        
+
         const resetValues = {
             timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
             sections: logbookSections.map(section => ({
@@ -187,20 +194,27 @@ export default function LogbookPage() {
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
       e.preventDefault();
-      const form = e.currentTarget.form;
-      if (!form) return;
+      const formElement = e.currentTarget.form;
+      if (!formElement) return;
 
-      const focusable = Array.from(form.querySelectorAll('input:not([readonly]), textarea, button, select'));
-      const index = focusable.indexOf(e.currentTarget);
+      const focusable = Array.from(formElement.querySelectorAll('input:not([readonly]), textarea, button, select'));
       
-      const nextElement = focusable[index + 1];
+      const fillableFocusable = focusable.filter(el => 
+        (el instanceof HTMLInputElement && !el.readOnly) || 
+        el instanceof HTMLTextAreaElement || 
+        (el instanceof HTMLButtonElement && el.type === 'submit')
+      );
+      
+      const index = fillableFocusable.indexOf(e.currentTarget);
+
+      const nextElement = fillableFocusable[index + 1];
       if (nextElement && nextElement instanceof HTMLElement) {
           nextElement.focus();
           nextElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
   };
-  
+
   if (!formReady) {
     return (
         <div className="flex flex-col gap-6">
@@ -240,7 +254,7 @@ export default function LogbookPage() {
       </div>
     );
   }
-  
+
   const findReadingById = (id: string) => {
     for (const section of logbookSections) {
       for (const reading of section.readings) {
@@ -251,7 +265,7 @@ export default function LogbookPage() {
     }
     return null;
   }
-  
+
   return (
     <div className="flex flex-col gap-4">
       <AppHeader />
@@ -318,7 +332,7 @@ export default function LogbookPage() {
                   })}
                 </div>
               ))}
-              
+
               <div className="pt-1">
                 <h3 className="text-muted-foreground bg-muted p-1 my-1 rounded-md text-center font-bold text-xs">Condition</h3>
                 <FormField
@@ -333,7 +347,7 @@ export default function LogbookPage() {
                   )}
                 />
               </div>
-              
+
               <div className="pt-4">
                 <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || !user}>
                   {form.formState.isSubmitting ? 'Saving...' : 'Save Log'}
