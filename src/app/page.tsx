@@ -111,14 +111,11 @@ export default function DashboardPage() {
   };
 
   const lowStockItems = (inventory || []).filter(item => item.stock <= item.lowStockThreshold);
-  const sortedLogs = [...(logs || [])].sort((a, b) => {
-    const dateA = safeToDate(a.timestamp);
-    const dateB = safeToDate(b.timestamp);
-    if (!dateA || !dateB) return 0;
-    return dateB.getTime() - dateA.getTime();
-  });
-  const latestLog = sortedLogs.length > 0 ? sortedLogs[0] : null;
-  const recentLogs = sortedLogs.slice(0, 5);
+  
+  // *** Perubahan di sini: logs sudah di-fetch dan diurutkan oleh use-data.ts ***
+  // Kita tidak perlu mengurutkan lagi. logs hanya berisi 50 data terbaru.
+  const latestLog = (logs && logs.length > 0) ? logs[0] : null; // Ambil yang paling atas (terbaru)
+  const recentLogs = (logs || []).slice(0, 5); // Hanya ambil 5 log teratas untuk ditampilkan di dashboard
   
   const getReading = (log: EngineLog, key: string) => {
     if (!log.readings) return 'N/A';
@@ -126,7 +123,9 @@ export default function DashboardPage() {
     return reading ? `${reading.value} ${reading.unit}` : 'N/A';
   }
   
-  const chartData = sortedLogs.slice(0, 7).reverse().map(log => {
+  // Data chart menggunakan 7 log teratas dari 50 log yang tersedia (logs)
+  // Perlu di-reverse agar chart menampilkan data tertua di kiri (seperti linimasa)
+  const chartData = (logs || []).slice(0, 7).reverse().map(log => {
     const logDate = safeToDate(log.timestamp);
     return {
         date: logDate ? logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
