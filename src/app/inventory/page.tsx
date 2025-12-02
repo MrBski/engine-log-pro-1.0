@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -30,6 +29,9 @@ import { AppHeader } from '@/components/app-header';
 import { useData } from '@/hooks/use-data';
 import { useAuth } from '@/hooks/use-auth';
 
+// --- 1. SKEMA VALIDASI (ZOD) ---
+
+// Skema untuk menambah item baru
 const itemSchema = z.object({
   name: z.string().min(1, "Item name is required."),
   category: z.enum(['main-engine', 'generator', 'other']),
@@ -38,36 +40,53 @@ const itemSchema = z.object({
   lowStockThreshold: z.coerce.number().min(0, "Threshold can't be negative."),
 });
 
+// Skema untuk menggunakan (mengurangi) item
 const useItemSchema = z.object({
   itemId: z.string().min(1, "Please select an item to use."),
   amount: z.coerce.number().min(1, "Must use at least 1."),
 });
 
+// --- 2. KONSTANTA KRITIS ---
+// REKOMENDASI: PIN harus dipindahkan ke src/lib/constants.ts untuk Single Source of Truth
 const HARDCODED_PIN = "1234";
+
+// --- KOMPONEN UTAMA INVENTORY ---
 
 export default function InventoryPage() {
   const { inventory = [], addInventoryItem, updateInventoryItem, deleteInventoryItem, addActivityLog, inventoryLoading } = useData();
   const { user } = useAuth();
+  
+  // --- STATE MODAL & SECURITY ---
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUseDialogOpen, setIsUseDialogOpen] = useState(false);
   const [isPinDialogOpen, setIsPinDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
+  
   const { toast } = useToast();
 
+  // Instance Form: Add Item
   const addForm = useForm<z.infer<typeof itemSchema>>({
     resolver: zodResolver(itemSchema),
     defaultValues: { name: "", category: 'other', stock: 0, unit: "pcs", lowStockThreshold: 1 },
   });
 
+  // Instance Form: Use Item
   const useFormInstance = useForm<z.infer<typeof useItemSchema>>({
     resolver: zodResolver(useItemSchema),
     defaultValues: { itemId: "", amount: 1 },
   });
-  
-  const isLoggedIn = !!user;
 
+  // Semua kategori inventaris
+  const categories: InventoryCategory[] = ['main-engine', 'generator', 'other'];
+
+  // --- 3. MUTATOR HANDLERS ---
+
+  /**
+   * @description Menambahkan item baru ke inventaris.
+   * Melakukan: addInventoryItem dan mencatat Activity Log.
+   */
   const handleAddItem = async (values: z.infer<typeof itemSchema>) => {
     try {
       await addInventoryItem(values);
@@ -87,18 +106,24 @@ export default function InventoryPage() {
     }
   };
 
+  /**
+   * @description Mengurangi stok item yang sudah ada.
+   * Melakukan: Validasi stok, updateInventoryItem, dan mencatat Activity Log.
+   */
   const handleUseItem = async (values: z.infer<typeof useItemSchema>) => {
     const itemToUse = inventory.find(item => item.id === values.itemId);
     if (!itemToUse) {
       useFormInstance.setError("itemId", { type: "manual", message: "Item not found." });
       return;
     }
+    // VALIDASI KRITIS: Stok harus cukup
     if(values.amount > itemToUse.stock) {
         useFormInstance.setError("amount", { type: "manual", message: "Not enough stock." });
         return;
     }
-    
+
     try {
+      // Kurangi stok di use-data hook
       await updateInventoryItem(itemToUse.id, { stock: itemToUse.stock - values.amount });
       await addActivityLog({
         type: 'inventory',
@@ -115,7 +140,10 @@ export default function InventoryPage() {
        toast({ variant: 'destructive', title: 'Error', description: 'Failed to update item stock.' });
     }
   };
-  
+
+  /**
+   * @description Memulai proses penghapusan item (membuka modal PIN).
+   */
   const initiateDeleteItem = (item: InventoryItem) => {
     setItemToDelete(item);
     setIsPinDialogOpen(true);
@@ -123,7 +151,11 @@ export default function InventoryPage() {
     setPinError('');
   };
 
+  /**
+   * @description Menangani konfirmasi PIN dan eksekusi penghapusan item.
+   */
   const handlePinConfirmDelete = async () => {
+    // 1. PIN Check
     if (pin !== HARDCODED_PIN) {
         setPinError('Incorrect PIN. Please try again.');
         return;
@@ -131,6 +163,7 @@ export default function InventoryPage() {
 
     if (!itemToDelete) return;
 
+    // 2. Eksekusi Delete
     try {
       await deleteInventoryItem(itemToDelete.id);
       await addActivityLog({
@@ -149,22 +182,28 @@ export default function InventoryPage() {
     }
   };
 
-  const categories: InventoryCategory[] = ['main-engine', 'generator', 'other'];
-
+  // --- 4. RENDERER TABLE PER KATEGORI ---
+  /**
+   * @description Merender tabel inventaris untuk kategori tertentu.
+   * Termasuk indikator Low Stock Badge.
+   */
   const renderTable = (category: InventoryCategory) => {
     const items = inventory.filter(item => item.category === category);
+    
+    // Loading State
     if (inventoryLoading) {
       return (
         <div className="space-y-2 p-4">
           <div className="h-8 w-full rounded bg-muted animate-pulse" />
-          <div className="h-8 w-full rounded bg-muted animate-pulse" />
-          <div className="h-8 w-full rounded bg-muted animate-pulse" />
         </div>
       );
     }
+    
+    // Empty State
     if (items.length === 0) {
       return <p className="text-center text-muted-foreground p-4">No items in this category.</p>
     }
+    
     return (
       <Table>
         <TableHeader>
@@ -179,16 +218,18 @@ export default function InventoryPage() {
             <TableRow key={item.id}>
               <TableCell className="p-2 font-medium">{item.name}</TableCell>
               <TableCell className="p-2 text-right">
+                {/* Visual Alert: Destructive (Merah) jika di bawah threshold */}
                 <Badge variant={item.stock <= item.lowStockThreshold ? 'destructive' : 'secondary'}>
                   {item.stock} {item.unit}
                 </Badge>
               </TableCell>
               <TableCell className="p-2 text-right">
+                {/* Delete Button (Dilindungi oleh PIN) */}
                 <Button 
                     variant="ghost" 
                     size="icon" 
                     className="h-8 w-8 text-muted-foreground" 
-                    disabled={!user || user.uid === 'guest-user'}
+                    disabled={!user || user.uid === 'guest-user'} // Nonaktifkan untuk Guest
                     onClick={() => initiateDeleteItem(item)}
                 >
                     <Icons.trash className="h-4 w-4" />
@@ -203,7 +244,7 @@ export default function InventoryPage() {
 
   const selectedItemForUsage = useFormInstance.watch("itemId");
   const selectedItemDetails = inventory.find(item => item.id === selectedItemForUsage);
-  
+
   const { isSubmitting: isAdding } = addForm.formState;
   const { isSubmitting: isUsing } = useFormInstance.formState;
 
@@ -217,7 +258,10 @@ export default function InventoryPage() {
             <CardTitle>Inventory</CardTitle>
             <CardDescription>Manage all parts and supplies.</CardDescription>
           </div>
+          {/* Action Buttons: Use Item & Add Item */}
           <div className="flex gap-2">
+            
+            {/* Modal: Use Item */}
             <Dialog open={isUseDialogOpen} onOpenChange={setIsUseDialogOpen}>
               <DialogTrigger asChild><Button variant="outline" className="flex-1" disabled={!user || user.uid === 'guest-user'}><Icons.minus className="mr-2 h-4 w-4" /> Use Item</Button></DialogTrigger>
               <DialogContent>
@@ -226,6 +270,8 @@ export default function InventoryPage() {
                     <DialogDescription>Select an item and specify the amount used.</DialogDescription>
                 </DialogHeader>
                 <Form {...useFormInstance}><form onSubmit={useFormInstance.handleSubmit(handleUseItem)} className="space-y-4">
+                  
+                  {/* Field: Item Selection */}
                   <FormField control={useFormInstance.control} name="itemId" render={({ field }) => (
                     <FormItem><FormLabel>Item</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isUsing}>
@@ -239,11 +285,14 @@ export default function InventoryPage() {
                       <FormMessage />
                     </FormItem>
                   )} />
+                  
+                  {/* Field: Amount (Hanya muncul jika item sudah dipilih) */}
                   {selectedItemDetails && (
                     <FormField control={useFormInstance.control} name="amount" render={({ field }) => (
                         <FormItem><FormLabel>Amount to use ({selectedItemDetails.unit})</FormLabel><FormControl><Input type="number" placeholder="1" {...field} disabled={isUsing} /></FormControl><FormMessage /></FormItem>
                     )} />
                   )}
+                  
                   <DialogFooter>
                       <DialogClose asChild><Button type="button" variant="secondary" disabled={isUsing}>Cancel</Button></DialogClose>
                       <Button type="submit" disabled={isUsing || !selectedItemDetails}>
@@ -253,11 +302,15 @@ export default function InventoryPage() {
                 </form></Form>
               </DialogContent>
             </Dialog>
+            
+            {/* Modal: Add Item */}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild><Button className="flex-1" disabled={!user || user.uid === 'guest-user'}><Icons.plus className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Add New Inventory Item</DialogTitle></DialogHeader>
                 <Form {...addForm}><form onSubmit={addForm.handleSubmit(handleAddItem)} className="space-y-4">
+                  
+                  {/* Fields: Name, Category, Stock, Unit, Threshold */}
                   <FormField control={addForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Item Name</FormLabel><FormControl><Input placeholder="e.g. Lube Oil Filter" {...field} disabled={isAdding} /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={addForm.control} name="category" render={({ field }) => (
                     <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isAdding}>
@@ -265,11 +318,13 @@ export default function InventoryPage() {
                         <SelectContent><SelectItem value="main-engine">Main Engine</SelectItem><SelectItem value="generator">Generator</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent>
                     </Select><FormMessage /></FormItem>
                   )} />
+                  
                   <div className="grid grid-cols-3 gap-4">
                     <FormField control={addForm.control} name="stock" render={({ field }) => (<FormItem><FormLabel>Stock</FormLabel><FormControl><Input type="number" {...field} disabled={isAdding} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={addForm.control} name="unit" render={({ field }) => (<FormItem><FormLabel>Unit</FormLabel><FormControl><Input placeholder="pcs" {...field} disabled={isAdding} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={addForm.control} name="lowStockThreshold" render={({ field }) => (<FormItem><FormLabel>Threshold</FormLabel><FormControl><Input type="number" {...field} disabled={isAdding} /></FormControl><FormMessage /></FormItem>)} />
                   </div>
+                  
                   <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="secondary" disabled={isAdding}>Cancel</Button></DialogClose>
                     <Button type="submit" disabled={isAdding}>
@@ -281,6 +336,8 @@ export default function InventoryPage() {
             </Dialog>
           </div>
         </CardHeader>
+        
+        {/* Inventory Tabs (M.E, Generator, Other) */}
         <CardContent>
           <Tabs defaultValue="main-engine">
             <TabsList>
@@ -289,12 +346,15 @@ export default function InventoryPage() {
               <TabsTrigger value="other">Others</TabsTrigger>
             </TabsList>
             {categories.map(cat => (
-              <TabsContent key={cat} value={cat}>{renderTable(cat)}</TabsContent>
+              <TabsContent key={cat} value={cat}>
+                {renderTable(cat)}
+              </TabsContent>
             ))}
           </Tabs>
         </CardContent>
       </Card>
-      
+
+       {/* Modal: PIN Confirmation for Deletion */}
        <Dialog open={isPinDialogOpen} onOpenChange={setIsPinDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -327,5 +387,3 @@ export default function InventoryPage() {
     </>
   );
 }
-
-    
