@@ -16,6 +16,9 @@ import { Icons } from '@/components/icons';
 import Link from 'next/link';
 import { useData } from '@/hooks/use-data';
 import { useAuth } from '@/hooks/use-auth';
+import { type LogSection } from '@/lib/data'; // Menggunakan Type LogSection dari lib/data
+
+// --- 1. SKEMA VALIDASI (ZOD) ---
 
 const readingSchema = z.object({
   id: z.string(),
@@ -37,6 +40,8 @@ const logSchema = z.object({
 
 type LogFormData = z.infer<typeof logSchema>;
 
+// --- 2. KONSTANTA VISUAL (REKOMENDASI: Pindahkan ke src/lib/constants.ts) ---
+
 const sectionColors: { [key: string]: string } = {
     'M.E Port Side': 'bg-red-600',
     'M.E Starboard': 'bg-green-600',
@@ -46,6 +51,8 @@ const sectionColors: { [key: string]: string } = {
     'Daily Tank Before On Duty': 'bg-cyan-600',
     'Others': 'bg-slate-500'
 };
+
+// --- KOMPONEN UTAMA ---
 
 export default function LogbookPage() {
   const { addLog, addActivityLog, settings, updateSettings, logbookSections = [], settingsLoading, logbookLoading } = useData();
@@ -68,18 +75,33 @@ export default function LogbookPage() {
     name: "sections",
   });
 
-  const { onDutyBeforeSectionIndex, onDutyBeforeReadingIndex, dailyTankAfterSectionIndex, dailyTankAfterReadingIndex, used4HoursSectionIndex, used4HoursReadingIndex } = useMemo(() => {
+  // --- 3. LOGIC PENCARIAN INDEX FIELD OTOMATIS (USED 4 HOURS) ---
+  /**
+   * @description Mencari index Section dan Reading yang relevan untuk perhitungan otomatis.
+   * Dilakukan hanya sekali saat logbookSections berubah.
+   */
+  const { 
+    onDutyBeforeSectionIndex, onDutyBeforeReadingIndex, 
+    dailyTankAfterSectionIndex, dailyTankAfterReadingIndex, 
+    used4HoursSectionIndex, used4HoursReadingIndex 
+  } = useMemo(() => {
     let onDutySIdx, onDutyRIdx, dailySIdx, dailyRIdx, usedSIdx, usedRIdx;
-    logbookSections.forEach((section, sectionIdx) => {
+    
+    // Iterasi melalui semua Section untuk menemukan field berdasarkan ID unik
+    logbookSections.forEach((section: LogSection, sectionIdx: number) => {
+        // Daily Tank Before On Duty (Input Atasan/Sebelum Jaga)
         let readingIdx = section.readings.findIndex(r => r.id === 'onduty_before');
         if (readingIdx !== -1) { onDutySIdx = sectionIdx; onDutyRIdx = readingIdx; }
 
+        // Daily Tank After (Input Setelah Pakai)
         readingIdx = section.readings.findIndex(r => r.id === 'daily_before');
         if (readingIdx !== -1) { dailySIdx = sectionIdx; dailyRIdx = readingIdx; }
 
+        // USED 4 HOURS (Field yang dihitung dan diisi otomatis)
         readingIdx = section.readings.findIndex(r => r.id === 'other_used');
         if (readingIdx !== -1) { usedSIdx = sectionIdx; usedRIdx = readingIdx; }
     });
+    
     return { 
         onDutyBeforeSectionIndex: onDutySIdx, 
         onDutyBeforeReadingIndex: onDutyRIdx,
@@ -90,16 +112,22 @@ export default function LogbookPage() {
     };
   }, [logbookSections]);
 
+  // --- 4. WATCH INPUT FIELDS ---
+  // Memonitor (watch) nilai dari dua input yang dibutuhkan untuk perhitungan.
   const onDutyBeforeValue = form.watch(`sections.${onDutyBeforeSectionIndex}.readings.${onDutyBeforeReadingIndex}.value`);
   const dailyTankAfterValue = form.watch(`sections.${dailyTankAfterSectionIndex}.readings.${dailyTankAfterReadingIndex}.value`);
 
+  // --- 5. EFFECT: INILISASI FORM ---
+  /**
+   * @description Mengatur nilai default form (Timestamp saat ini dan struktur field dinamis).
+   */
   useEffect(() => {
     if (formReady && logbookSections.length > 0 && settings) {
       const dynamicDefaultValues = {
         timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         sections: logbookSections.map(section => ({
           ...section,
-          readings: section.readings.map(r => ({...r, value: ''}))
+          readings: section.readings.map(r => ({...r, value: ''})) // Reset nilai ke string kosong
         })),
         condition: ""
       };
@@ -108,27 +136,35 @@ export default function LogbookPage() {
   }, [formReady, logbookSections, settings, form]);
 
 
+  // --- 6. EFFECT: PERHITUNGAN OTOMATIS 'USED 4 HOURS' ---
+  /**
+   * @description Melakukan perhitungan dan pembulatan otomatis untuk field 'USED 4 HOURS'.
+   * Perhitungan: onDutyBeforeValue - dailyTankAfterValue
+   * Aturan Pembulatan: Math.round() (0.5 ke atas, <0.5 ke bawah).
+   */
   useEffect(() => {
     if (used4HoursSectionIndex === undefined || used4HoursReadingIndex === undefined || !formReady) return;
 
     const onDutyBefore = parseFloat(onDutyBeforeValue || '0');
     const dailyTankAfter = parseFloat(dailyTankAfterValue || '0');
 
+    // Cek apakah input valid dan positif
     if (!isNaN(onDutyBefore) && !isNaN(dailyTankAfter) && onDutyBefore > 0 && dailyTankAfter > 0) {
-        
+
         const rawUsed4Hours = onDutyBefore - dailyTankAfter;
         
-        // --- PERUBAHAN KRITIS: Menggunakan Math.round untuk pembulatan operasional ---
-        // Math.round() membulatkan 0.5 ke atas (Misal: 4.5 -> 5, 4.4 -> 4)
+        // Pembulatan Operasional
         const used4Hours = Math.round(rawUsed4Hours);
         const used4HoursString = used4Hours > 0 ? used4Hours.toString() : '0';
 
         const currentVal = form.getValues(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`);
-        
+
+        // Set nilai hanya jika berubah (mencegah loop tak terbatas)
         if (currentVal !== used4HoursString) {
             form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, used4HoursString, { shouldValidate: true, shouldDirty: true });
         }
     } else {
+        // Reset nilai USED 4 HOURS jika input tidak valid
         const currentVal = form.getValues(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`);
         if (currentVal !== "") {
             form.setValue(`sections.${used4HoursSectionIndex}.readings.${used4HoursReadingIndex}.value`, "", { shouldValidate: false });
@@ -138,19 +174,26 @@ export default function LogbookPage() {
   }, [onDutyBeforeValue, dailyTankAfterValue, form, formReady, used4HoursSectionIndex, used4HoursReadingIndex]);
 
 
+  // --- 7. SUBMISSION LOGIC ---
+  /**
+   * @description Menangani submit form Logbook.
+   * Melakukan: 1. Formatting data. 2. Menyimpan EngineLog. 3. Menyimpan ActivityLog (Engine). 4. Memperbarui total Running Hours (+4 jam).
+   * @param values Data form yang sudah divalidasi.
+   */
   async function onSubmit(values: LogFormData) {
     if (!user) {
       toast({ variant: 'destructive', title: "Error", description: "You must be logged in to save a log." });
       return;
     }
 
+    // 1. Formatting data (Flattening sections ke array readings tunggal)
     const newLogData = {
       timestamp: new Date(values.timestamp),
       officer: user.name,
       readings: values.sections.flatMap(s => 
         s.readings.map(r => ({
           id: r.id,
-          key: `${s.title} - ${r.key}`,
+          key: `${s.title} - ${r.key}`, // Key dibuat unik (e.g., "M.E Port Side - RPM")
           value: r.value,
           unit: r.unit,
         }))
@@ -159,7 +202,9 @@ export default function LogbookPage() {
     };
 
     try {
-        const newLogId = await addLog(newLogData);
+        const newLogId = await addLog(newLogData); // Simpan Engine Log
+
+        // Tambahkan Activity Log terkait Engine Log (untuk Cascading Delete)
         if (newLogId) {
             await addActivityLog({
                 type: 'engine',
@@ -171,12 +216,14 @@ export default function LogbookPage() {
             });
         }
 
+        // PERBARUI RUNNING HOURS (+4 jam)
         if (settings) {
             await updateSettings({ runningHours: (settings.runningHours || 0) + 4 });
         }
 
         toast({ title: "Success", description: "New engine log has been recorded." });
 
+        // Reset Form
         const resetValues = {
             timestamp: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
             sections: logbookSections.map(section => ({
@@ -191,29 +238,39 @@ export default function LogbookPage() {
     }
   }
 
+  // --- 8. LOGIC KEY DOWN (Fast Input Navigation) ---
+  /**
+   * @description Menangani navigasi form menggunakan tombol 'Enter'.
+   * @param e Event Keyboard.
+   */
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
       e.preventDefault();
       const formElement = e.currentTarget.form;
       if (!formElement) return;
 
+      // Mencari semua elemen yang bisa di-focus
       const focusable = Array.from(formElement.querySelectorAll('input:not([readonly]), textarea, button, select'));
-      
+
+      // Filter elemen yang bisa diisi (tidak readonly dan bukan button biasa)
       const fillableFocusable = focusable.filter(el => 
         (el instanceof HTMLInputElement && !el.readOnly) || 
         el instanceof HTMLTextAreaElement || 
         (el instanceof HTMLButtonElement && el.type === 'submit')
       );
-      
-      const index = fillableFocusable.indexOf(e.currentTarget);
 
+      const index = fillableFocusable.indexOf(e.currentTarget);
       const nextElement = fillableFocusable[index + 1];
+
+      // Pindah focus ke elemen berikutnya
       if (nextElement && nextElement instanceof HTMLElement) {
           nextElement.focus();
           nextElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
   };
+
+  // --- 9. VIEW: Loading & Not Configured State ---
 
   if (!formReady) {
     return (
@@ -255,6 +312,7 @@ export default function LogbookPage() {
     );
   }
 
+  // Helper untuk mencari data reading asli berdasarkan ID (digunakan untuk label)
   const findReadingById = (id: string) => {
     for (const section of logbookSections) {
       for (const reading of section.readings) {
@@ -265,6 +323,8 @@ export default function LogbookPage() {
     }
     return null;
   }
+
+  // --- 10. VIEW: Form Utama ---
 
   return (
     <div className="flex flex-col gap-4">
@@ -281,6 +341,8 @@ export default function LogbookPage() {
         <CardContent className="max-w-md mx-auto space-y-4 text-sm">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              
+              {/* Field 1: Timestamp */}
               <FormField
                 control={form.control}
                 name="timestamp"
@@ -298,13 +360,16 @@ export default function LogbookPage() {
                 )}
               />
 
+              {/* Field Dinamis: Looping Section dan Reading */}
               {sectionFields.map((section, sectionIndex) => (
                 <div key={section.id} className="space-y-1">
+                  {/* Section Title */}
                   <h3 className={`font-bold text-center p-1 my-1 rounded-md text-primary-foreground text-xs ${sectionColors[section.title] || 'bg-gray-500'}`}>
                     {section.title}
                   </h3>
                   {section.readings.map((reading, readingIndex) => {
                     const originalReading = findReadingById(reading.id);
+                    // Field 'other_used' (USED 4 HOURS) diset readOnly
                     const isReadOnly = originalReading?.id === 'other_used';
                     return (
                         <FormField
@@ -333,6 +398,7 @@ export default function LogbookPage() {
                 </div>
               ))}
 
+              {/* Field Terakhir: Condition / Notes */}
               <div className="pt-1">
                 <h3 className="text-muted-foreground bg-muted p-1 my-1 rounded-md text-center font-bold text-xs">Condition</h3>
                 <FormField
@@ -348,6 +414,7 @@ export default function LogbookPage() {
                 />
               </div>
 
+              {/* Tombol Submit */}
               <div className="pt-4">
                 <Button type="submit" className="w-full" disabled={form.formState.isSubmitting || !user}>
                   {form.formState.isSubmitting ? 'Saving...' : 'Save Log'}
