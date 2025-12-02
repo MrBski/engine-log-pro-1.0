@@ -47,7 +47,7 @@ export default function DashboardPage() {
   
   const [mounted, setMounted] = useState(false);
   const [genElapsed, setGenElapsed] = useState(0); 
-  const [meElapsed, setMeElapsed] = useState(0); // STATE BARU UNTUK M.E
+  const [meElapsed, setMeElapsed] = useState(0); 
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -76,7 +76,7 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [settings]);
 
-  // --- TIMER BARU UNTUK MAIN ENGINE (M.E) ---
+  // Timer Main Engine (M.E)
   useEffect(() => {
     if (!settings) return;
 
@@ -97,7 +97,7 @@ export default function DashboardPage() {
   }, [settings]);
 
 
-  // --- LOGIC TOGGLE GENERATOR (EXISTING) ---
+  // Logic Toggle Generator
   const handleGeneratorToggle = async () => {
     if (!settings || !user || !user.name) return;
     if (settings.generatorStatus === 'on') {
@@ -133,11 +133,10 @@ export default function DashboardPage() {
      } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed reset." }); }
   };
   
-  // --- LOGIC TOGGLE MAIN ENGINE (M.E) ---
+  // Logic Toggle Main Engine (M.E)
   const handleMainEngineToggle = async () => {
     if (!settings || !user || !user.name) return;
     if (settings.mainEngineStatus === 'on') {
-      // M.E DARI ON MENJADI OFF
       const endTime = Date.now();
       const startTime = settings.mainEngineStartTime || endTime;
       const elapsedHours = (endTime - startTime) / (1000 * 60 * 60);
@@ -145,13 +144,11 @@ export default function DashboardPage() {
         await updateSettings({
             mainEngineStatus: 'off',
             mainEngineStartTime: null,
-            // Tambahkan jam berjalan ke total M.E Running Hours di timer
             mainEngineRunningHours: (settings.mainEngineRunningHours || 0) + elapsedHours,
         });
         await addActivityLog({ type: 'main_engine', timestamp: new Date(), notes: 'Main Engine turned OFF', officer: user.name });
       } catch (error) { toast({ variant: "destructive", title: "Error", description: "Failed to turn M.E OFF." }); }
     } else {
-      // M.E DARI OFF MENJADI ON
       try {
         await updateSettings({ 
             mainEngineStatus: 'on', 
@@ -167,8 +164,7 @@ export default function DashboardPage() {
      try {
         await updateSettings({
             mainEngineRunningHours: 0,
-            // Reset jam yang dicatat dari log 4 jam juga? (runningHours)
-            // runningHours: 0, // Opsional, tergantung kebijakan Anda
+            // Opsional: runningHours: 0,
             mainEngineStartTime: settings.mainEngineStatus === 'on' ? Date.now() : null,
             mainEngineLastReset: new Date(),
         });
@@ -224,20 +220,28 @@ export default function DashboardPage() {
         </div>
       )
   }
+  
+  // Logika penentuan warna untuk M.E dan Generator
+  const meToggleClassName = settings?.mainEngineStatus === 'on' 
+    ? "bg-green-600 hover:bg-green-700" // Nyala: Kuning-Hijau (diganti Green-600)
+    : "bg-amber-600 hover:bg-amber-700"; // Mati: Kuning-Merah (diganti Amber-600)
+    
+  const genToggleClassName = settings?.generatorStatus === 'on' 
+    ? "bg-sky-500 hover:bg-sky-600" // Nyala: Biru
+    : "bg-red-600 hover:bg-red-700"; // Mati: Merah
 
   return (
     <div className="flex flex-col gap-6">
       <AppHeader />
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         
-        {/* --- MAIN ENGINE CARD (BARU) --- */}
+        {/* --- MAIN ENGINE CARD --- */}
         <Card className="flex flex-col p-4 justify-between">
           <div className="flex-1">
             <div className="flex items-start">
               <Icons.clock className="h-6 w-6 text-muted-foreground mr-4" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-muted-foreground">M.E Running Hours</p>
-                {/* Menampilkan jam dari timer M.E */}
                  <p className="text-xl font-bold">{formatDuration(meElapsed)}</p>
                  {lastResetDateME && (
                      <p className="text-xs text-muted-foreground mt-1">
@@ -262,7 +266,7 @@ export default function DashboardPage() {
               </AlertDialog>
               <Button 
                   size="icon" 
-                  className={cn("h-8 w-8", settings?.mainEngineStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
+                  className={cn("h-8 w-8", meToggleClassName)} // MENGGUNAKAN CLASSNAME BARU
                   onClick={handleMainEngineToggle}
                   disabled={!user}
               >
@@ -271,7 +275,7 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* --- GENERATOR CARD (EXISTING) --- */}
+        {/* --- GENERATOR CARD --- */}
         <Card className="flex flex-col p-4 justify-between">
             <div className="flex-1">
               <div className="flex items-start">
@@ -302,7 +306,7 @@ export default function DashboardPage() {
                 </AlertDialog>
                 <Button 
                     size="icon" 
-                    className={cn("h-8 w-8", settings?.generatorStatus === 'on' ? "bg-green-600 hover:bg-green-700" : "bg-orange-500 hover:bg-orange-600")}
+                    className={cn("h-8 w-8", genToggleClassName)} // MENGGUNAKAN CLASSNAME BARU
                     onClick={handleGeneratorToggle}
                     disabled={!user}
                 >
